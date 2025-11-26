@@ -69,7 +69,7 @@ struct LoginView: View {
                             .keyboardType(.emailAddress)
                         
                         // Password Field
-                        HStack {
+                        VStack(alignment: .trailing, spacing: 8) {
                             if showPassword {
                                 TextField("Password", text: $password)
                                     .autocapitalization(.none)
@@ -80,6 +80,7 @@ struct LoginView: View {
                             Button(action: { showPassword.toggle() }) {
                                 Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
                                     .foregroundColor(.gray)
+                                    .font(.system(size: 16))
                             }
                         }
                         .textFieldStyle(LoginTextFieldStyle())

@@ -18,6 +18,7 @@ class HomeViewModel: ObservableObject {
     @Published var selectedRegion: PhiladelphiaRegion = .all
     @Published var selectedCostLevel: CostLevel?
     @Published var selectedNoiseLevel: NoiseLevel?
+    @Published var selectedTimeEstimate: TimeEstimate?
     @Published var selectedItinerary: Itinerary?
     @Published var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -53,24 +54,50 @@ class HomeViewModel: ObservableObject {
     var filteredItineraries: [Itinerary] {
         var filtered = itineraries
         
-        // Filter by category
+        // Filter by category - MUST match exactly
         if selectedCategory != .all {
             filtered = filtered.filter { $0.category == selectedCategory }
         }
         
-        // Filter by region
+        // Filter by region - only if a specific region is selected
         if selectedRegion != .all {
-            filtered = filtered.filter { $0.region == selectedRegion }
+            filtered = filtered.filter { itinerary in
+                // Only include if itinerary has a region AND it matches
+                if let itineraryRegion = itinerary.region {
+                    return itineraryRegion == selectedRegion
+                }
+                // If itinerary doesn't have a region set, exclude it when filtering by region
+                return false
+            }
         }
         
-        // Filter by cost level
+        // Filter by cost level - only if a specific cost level is selected
         if let costLevel = selectedCostLevel {
-            filtered = filtered.filter { $0.costLevel == costLevel }
+            filtered = filtered.filter { itinerary in
+                // Only include if itinerary has a cost level AND it matches
+                if let itineraryCostLevel = itinerary.costLevel {
+                    return itineraryCostLevel == costLevel
+                }
+                // If itinerary doesn't have a cost level set, exclude it when filtering by cost
+                return false
+            }
         }
         
-        // Filter by noise level
+        // Filter by noise level - only if a specific noise level is selected
         if let noiseLevel = selectedNoiseLevel {
-            filtered = filtered.filter { $0.noiseLevel == noiseLevel }
+            filtered = filtered.filter { itinerary in
+                // Only include if itinerary has a noise level AND it matches
+                if let itineraryNoiseLevel = itinerary.noiseLevel {
+                    return itineraryNoiseLevel == noiseLevel
+                }
+                // If itinerary doesn't have a noise level set, exclude it when filtering by noise
+                return false
+            }
+        }
+        
+        // Filter by time estimate - only if a specific time estimate is selected
+        if let timeEstimate = selectedTimeEstimate {
+            filtered = filtered.filter { timeEstimate.contains($0.timeEstimate) }
         }
         
         return filtered
@@ -78,6 +105,9 @@ class HomeViewModel: ObservableObject {
     
     func selectCategory(_ category: ItineraryCategory) {
         selectedCategory = category
+        // Ensure other filters don't interfere when only category is selected
+        // Only reset other filters if they would exclude results
+        // But keep them if user explicitly set them
     }
     
     func selectItinerary(_ itinerary: Itinerary) {
@@ -91,6 +121,7 @@ class HomeViewModel: ObservableObject {
             selectedRegion = .all
             selectedCostLevel = nil
             selectedNoiseLevel = nil
+            selectedTimeEstimate = nil
         }
         isMapExpanded.toggle()
     }
@@ -100,6 +131,7 @@ class HomeViewModel: ObservableObject {
         selectedRegion = .all
         selectedCostLevel = nil
         selectedNoiseLevel = nil
+        selectedTimeEstimate = nil
     }
     
     func refreshItineraries() {

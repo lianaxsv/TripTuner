@@ -81,7 +81,7 @@ enum ItineraryCategory: String, Codable, CaseIterable {
     
     var emoji: String {
         switch self {
-        case .restaurants: return "🍽️"
+        case .restaurants: return "🍽️ "
         case .cafes: return "☕"
         case .attractions: return "🎯"
         case .all: return "📍"

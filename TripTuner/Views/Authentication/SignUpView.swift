@@ -56,7 +56,7 @@ struct SignUpView: View {
                             .autocapitalization(.none)
                             .keyboardType(.emailAddress)
                         
-                        HStack {
+                        VStack(alignment: .trailing, spacing: 8) {
                             if showPassword {
                                 TextField("Password", text: $password)
                                     .autocapitalization(.none)
@@ -67,11 +67,12 @@ struct SignUpView: View {
                             Button(action: { showPassword.toggle() }) {
                                 Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
                                     .foregroundColor(.gray)
+                                    .font(.system(size: 16))
                             }
                         }
                         .textFieldStyle(LoginTextFieldStyle())
                         
-                        HStack {
+                        VStack(alignment: .trailing, spacing: 8) {
                             if showConfirmPassword {
                                 TextField("Confirm Password", text: $confirmPassword)
                                     .autocapitalization(.none)
@@ -82,6 +83,7 @@ struct SignUpView: View {
                             Button(action: { showConfirmPassword.toggle() }) {
                                 Image(systemName: showConfirmPassword ? "eye.slash.fill" : "eye.fill")
                                     .foregroundColor(.gray)
+                                    .font(.system(size: 16))
                             }
                         }
                         .textFieldStyle(LoginTextFieldStyle())

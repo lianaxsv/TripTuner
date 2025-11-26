@@ -577,7 +577,7 @@ struct CommentRowView: View {
                 Button(action: {
                     if isDisliked {
                         isDisliked = false
-                        dislikeCount = max(0, dislikeCount - 1)
+                        likeCount = max(0, likeCount + 1) // Restore the like count
                     }
                     isLiked.toggle()
                     if isLiked {
@@ -600,18 +600,15 @@ struct CommentRowView: View {
                     }
                     isDisliked.toggle()
                     if isDisliked {
-                        dislikeCount += 1
+                        likeCount = max(0, likeCount - 1) // Decrease upvote count by 1
                     } else {
-                        dislikeCount = max(0, dislikeCount - 1)
+                        likeCount += 1 // Restore when un-downvoting
                     }
                 }) {
                     Image(systemName: "arrow.down")
                         .font(.system(size: 12))
                         .foregroundColor(isDisliked ? .blue : .gray)
                 }
-                Text("\(dislikeCount)")
-                    .font(.system(size: 10))
-                    .foregroundColor(.gray)
             }
         }
         .padding(.vertical, 8)

@@ -65,22 +65,16 @@ struct AddItineraryView: View {
                     
                     Picker("Category *", selection: $selectedCategory) {
                         ForEach(ItineraryCategory.allCases.filter { $0 != .all }, id: \.self) { category in
-                            HStack {
-                                Text(category.emoji)
-                                Text(category.rawValue)
-                            }
-                            .tag(category)
+                            Text("\(category.emoji) \(category.rawValue)")
+                                .tag(category)
                         }
                     }
                     .pickerStyle(.menu)
                     
                     Picker("Region *", selection: $selectedRegion) {
                         ForEach(PhiladelphiaRegion.allCases.filter { $0 != .all }, id: \.self) { region in
-                            HStack {
-                                Text(region.emoji)
-                                Text(region.rawValue)
-                            }
-                            .tag(region)
+                            Text("\(region.emoji) \(region.rawValue)")
+                                .tag(region)
                         }
                     }
                     .pickerStyle(.menu)
@@ -101,12 +95,8 @@ struct AddItineraryView: View {
                     .pickerStyle(.menu)
                     
                     VStack(alignment: .leading) {
-                        HStack {
-                            Text("Noise Level: ")
-                            Text(currentNoiseLevel.emoji)
-                            Text(currentNoiseLevel.displayName)
-                                .fontWeight(.semibold)
-                        }
+                        Text("Noise Level: \(currentNoiseLevel.emoji) \(currentNoiseLevel.displayName)")
+                            .fontWeight(.semibold)
                         Slider(value: $noiseLevel, in: 1...4, step: 1)
                     }
                 }

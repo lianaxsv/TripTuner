@@ -167,10 +167,8 @@ struct AddPostTabView: View {
                 }
             }
         }
-        .sheet(isPresented: $showItineraryDetail) {
-            if let itinerary = selectedItinerary {
-                ItineraryDetailView(itinerary: itinerary)
-            }
+        .sheet(item: $selectedItinerary) { itinerary in
+            ItineraryDetailView(itinerary: itinerary)
         }
     }
 }

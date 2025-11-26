@@ -131,9 +131,9 @@ struct HomeView: View {
                     }) {
                         ZStack {
                             Map(position: $viewModel.cameraPosition) {
-                                ForEach(viewModel.filteredItineraries) { itinerary in
-                                    if let coordinate = itinerary.stops.first?.coordinate {
-                                        Annotation(itinerary.title, coordinate: coordinate) {
+                                ForEach(viewModel.filteredItineraries, id: \.id) { itinerary in
+                                    if let baseCoordinate = itinerary.stops.first?.coordinate {
+                                        Annotation(itinerary.title, coordinate: baseCoordinate) {
                                             Image(systemName: "mappin.circle.fill")
                                                 .font(.system(size: 20))
                                                 .foregroundColor(pinColor(for: itinerary.category))
@@ -238,7 +238,8 @@ struct HomeView: View {
         viewModel.selectedCategory != .all ||
         viewModel.selectedRegion != .all ||
         viewModel.selectedCostLevel != nil ||
-        viewModel.selectedNoiseLevel != nil
+        viewModel.selectedNoiseLevel != nil ||
+        viewModel.selectedTimeEstimate != nil
     }
     
     // MARK: - Expanded Map View
@@ -246,9 +247,9 @@ struct HomeView: View {
         ZStack {
             // Full Map
             Map(position: $viewModel.cameraPosition) {
-                ForEach(viewModel.filteredItineraries) { itinerary in
-                    if let coordinate = itinerary.stops.first?.coordinate {
-                        Annotation(itinerary.title, coordinate: coordinate) {
+                ForEach(viewModel.filteredItineraries, id: \.id) { itinerary in
+                    if let baseCoordinate = itinerary.stops.first?.coordinate {
+                        Annotation(itinerary.title, coordinate: baseCoordinate) {
                             Button(action: {
                                 viewModel.selectItinerary(itinerary)
                                 showItineraryDetail = true
@@ -330,6 +331,12 @@ struct HomeView: View {
                                     viewModel.selectedNoiseLevel = nil
                                 }
                             }
+                            
+                            if let time = viewModel.selectedTimeEstimate {
+                                FilterTag(text: time.displayName, emoji: time.emoji) {
+                                    viewModel.selectedTimeEstimate = nil
+                                }
+                            }
                         }
                         .padding(.horizontal, 20)
                     }
@@ -345,7 +352,7 @@ struct HomeView: View {
     private func pinColor(for category: ItineraryCategory) -> Color {
         switch category {
         case .restaurants: return .red
-        case .cafes: return .yellow
+        case .cafes: return .orange
         case .attractions: return .blue
         case .all: return .gray
         }
@@ -363,11 +370,8 @@ struct FilterSheetView: View {
                 Section("Category") {
                     Picker("Category", selection: $viewModel.selectedCategory) {
                         ForEach(ItineraryCategory.allCases, id: \.self) { category in
-                            HStack {
-                                Text(category.emoji)
-                                Text(category.rawValue)
-                            }
-                            .tag(category)
+                            Text("\(category.emoji) \(category.rawValue)")
+                                .tag(category)
                         }
                     }
                     .pickerStyle(.menu)
@@ -376,11 +380,8 @@ struct FilterSheetView: View {
                 Section("Region") {
                     Picker("Region", selection: $viewModel.selectedRegion) {
                         ForEach(PhiladelphiaRegion.allCases, id: \.self) { region in
-                            HStack {
-                                Text(region.emoji)
-                                Text(region.rawValue)
-                            }
-                            .tag(region)
+                            Text("\(region.emoji) \(region.rawValue)")
+                                .tag(region)
                         }
                     }
                     .pickerStyle(.menu)
@@ -391,7 +392,7 @@ struct FilterSheetView: View {
                         get: { viewModel.selectedCostLevel },
                         set: { viewModel.selectedCostLevel = $0 }
                     )) {
-                        Text("Any").tag(nil as CostLevel?)
+                        Text("Any Cost Level").tag(nil as CostLevel?)
                         ForEach(CostLevel.allCases, id: \.self) { cost in
                             Text(cost.description)
                                 .tag(cost as CostLevel?)
@@ -405,13 +406,24 @@ struct FilterSheetView: View {
                         get: { viewModel.selectedNoiseLevel },
                         set: { viewModel.selectedNoiseLevel = $0 }
                     )) {
-                        Text("Any").tag(nil as NoiseLevel?)
+                        Text("Any Noise Level").tag(nil as NoiseLevel?)
                         ForEach(NoiseLevel.allCases, id: \.self) { noise in
-                            HStack {
-                                Text(noise.emoji)
-                                Text(noise.displayName)
-                            }
-                            .tag(noise as NoiseLevel?)
+                            Text("\(noise.emoji) \(noise.displayName)")
+                                .tag(noise as NoiseLevel?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+                
+                Section("Time Estimate") {
+                    Picker("Time Estimate", selection: Binding(
+                        get: { viewModel.selectedTimeEstimate },
+                        set: { viewModel.selectedTimeEstimate = $0 }
+                    )) {
+                        Text("Any Time").tag(nil as TimeEstimate?)
+                        ForEach(TimeEstimate.allCases.filter { $0 != .any }, id: \.self) { time in
+                            Text("\(time.emoji) \(time.displayName)")
+                                .tag(time as TimeEstimate?)
                         }
                     }
                     .pickerStyle(.menu)
