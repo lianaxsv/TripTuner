@@ -20,29 +20,48 @@ struct SignUpView: View {
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(spacing: 24) {
+            ZStack {
+                // Background gradient matching app theme
+                LinearGradient(
+                    colors: [Color.pennRed.opacity(0.1), Color.pennBlue.opacity(0.1)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .ignoresSafeArea()
+                
+                ScrollView {
+                VStack(spacing: 0) {
                     // Logo
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(
                                 LinearGradient(
-                                    colors: [Color.purple, Color.blue],
+                                    colors: [Color.pennRed, Color.pennBlue],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
                             .frame(width: 80, height: 80)
                         
-                        Image(systemName: "apple.logo")
+                        Image(systemName: "map.fill")
                             .font(.system(size: 40))
                             .foregroundColor(.white)
                     }
-                    .padding(.top, 40)
+                    .padding(.top, 60)
                     
-                    Text("Create Account")
-                        .font(.system(size: 32, weight: .bold))
+                    // Header Text
+                    VStack(spacing: 8) {
+                        Text("Create Account")
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundColor(.pennRed)
+                        
+                        Text("Join the TripTuner community")
+                            .font(.system(size: 16))
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.top, 24)
                     
+                    // Input Fields
                     VStack(spacing: 16) {
                         TextField("Username", text: $username)
                             .textFieldStyle(LoginTextFieldStyle())
@@ -56,7 +75,8 @@ struct SignUpView: View {
                             .autocapitalization(.none)
                             .keyboardType(.emailAddress)
                         
-                        VStack(alignment: .trailing, spacing: 8) {
+                        // Password Field
+                        VStack(alignment: .trailing, spacing: 4) {
                             if showPassword {
                                 TextField("Password", text: $password)
                                     .autocapitalization(.none)
@@ -67,12 +87,13 @@ struct SignUpView: View {
                             Button(action: { showPassword.toggle() }) {
                                 Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
                                     .foregroundColor(.gray)
-                                    .font(.system(size: 16))
+                                    .font(.system(size: 14))
                             }
                         }
                         .textFieldStyle(LoginTextFieldStyle())
                         
-                        VStack(alignment: .trailing, spacing: 8) {
+                        // Confirm Password Field
+                        VStack(alignment: .trailing, spacing: 4) {
                             if showConfirmPassword {
                                 TextField("Confirm Password", text: $confirmPassword)
                                     .autocapitalization(.none)
@@ -83,13 +104,15 @@ struct SignUpView: View {
                             Button(action: { showConfirmPassword.toggle() }) {
                                 Image(systemName: showConfirmPassword ? "eye.slash.fill" : "eye.fill")
                                     .foregroundColor(.gray)
-                                    .font(.system(size: 16))
+                                    .font(.system(size: 14))
                             }
                         }
                         .textFieldStyle(LoginTextFieldStyle())
                     }
                     .padding(.horizontal, 20)
+                    .padding(.top, 24)
                     
+                    // Sign Up Button
                     Button(action: {
                         viewModel.signUp(email: email, password: password, username: username, handle: handle)
                     }) {
@@ -98,21 +121,48 @@ struct SignUpView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 50)
-                            .background(Color.blue)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color.pennRed, Color.pennBlue],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
                             .cornerRadius(12)
                     }
                     .padding(.horizontal, 20)
+                    .padding(.top, 24)
                     .disabled(viewModel.isLoading)
+                    
+                    // Sign In Link
+                    HStack(spacing: 4) {
+                        Text("Already have an account?")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 14))
+                        Button("Sign In") {
+                            dismiss()
+                        }
+                        .foregroundColor(.pennRed)
+                        .font(.system(size: 14, weight: .medium))
+                    }
+                    .padding(.top, 16)
+                    .padding(.bottom, 40)
                 }
-                .padding(.vertical, 20)
+                .background(Color.white)
+                .cornerRadius(24)
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 40)
+                }
             }
             .navigationTitle("Sign Up")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .foregroundColor(.pennRed)
                 }
             }
         }

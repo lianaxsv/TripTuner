@@ -13,13 +13,20 @@ import MapKit
 struct AddItineraryView: View {
     @Environment(\.dismiss) var dismiss
     private let itinerariesManager = ItinerariesManager.shared
-    @State private var title = ""
-    @State private var description = ""
-    @State private var selectedCategory: ItineraryCategory = .restaurants
-    @State private var selectedRegion: PhiladelphiaRegion = .all
-    @State private var selectedCostLevel: CostLevel = .free
+    
+    // Form state with UserDefaults persistence
+    @AppStorage("draftItineraryTitle") private var title = ""
+    @AppStorage("draftItineraryDescription") private var description = ""
+    @AppStorage("draftItineraryCategory") private var savedCategory: String = ""
+    @AppStorage("draftItineraryRegion") private var savedRegion: String = ""
+    @AppStorage("draftItineraryCost") private var savedCost: String = ""
+    @AppStorage("draftItineraryNoiseLevel") private var savedNoiseLevel: Double = 2.0
+    @AppStorage("draftItineraryTimeEstimate") private var timeEstimate: Double = 2
+    
+    @State private var selectedCategory: ItineraryCategory? = nil
+    @State private var selectedRegion: PhiladelphiaRegion? = nil
+    @State private var selectedCostLevel: CostLevel? = nil
     @State private var noiseLevel: Double = 2.0
-    @State private var timeEstimate: Double = 2
     @State private var stops: [EditableStop] = []
     @State private var selectedPhotos: [PhotosPickerItem] = []
     @State private var isLoading = false
@@ -30,8 +37,11 @@ struct AddItineraryView: View {
         !title.trimmingCharacters(in: .whitespaces).isEmpty &&
         !description.trimmingCharacters(in: .whitespaces).isEmpty &&
         !stops.isEmpty &&
+        selectedCategory != nil &&
         selectedCategory != .all &&
-        selectedRegion != .all
+        selectedRegion != nil &&
+        selectedRegion != .all &&
+        selectedCostLevel != nil
     }
     
     var currentNoiseLevel: NoiseLevel {
@@ -63,18 +73,32 @@ struct AddItineraryView: View {
                     TextField("Description *", text: $description, axis: .vertical)
                         .lineLimit(3...6)
                     
-                    Picker("Category *", selection: $selectedCategory) {
+                    Picker("Category *", selection: Binding(
+                        get: { selectedCategory },
+                        set: { 
+                            selectedCategory = $0
+                            savedCategory = $0?.rawValue ?? ""
+                        }
+                    )) {
+                        Text("Select Category").tag(nil as ItineraryCategory?)
                         ForEach(ItineraryCategory.allCases.filter { $0 != .all }, id: \.self) { category in
                             Text("\(category.emoji) \(category.rawValue)")
-                                .tag(category)
+                                .tag(category as ItineraryCategory?)
                         }
                     }
                     .pickerStyle(.menu)
                     
-                    Picker("Region *", selection: $selectedRegion) {
+                    Picker("Region *", selection: Binding(
+                        get: { selectedRegion },
+                        set: { 
+                            selectedRegion = $0
+                            savedRegion = $0?.rawValue ?? ""
+                        }
+                    )) {
+                        Text("Select Region").tag(nil as PhiladelphiaRegion?)
                         ForEach(PhiladelphiaRegion.allCases.filter { $0 != .all }, id: \.self) { region in
                             Text("\(region.emoji) \(region.rawValue)")
-                                .tag(region)
+                                .tag(region as PhiladelphiaRegion?)
                         }
                     }
                     .pickerStyle(.menu)
@@ -86,10 +110,17 @@ struct AddItineraryView: View {
                         Slider(value: $timeEstimate, in: 1...12, step: 1)
                     }
                     
-                    Picker("Cost *", selection: $selectedCostLevel) {
+                    Picker("Cost *", selection: Binding(
+                        get: { selectedCostLevel },
+                        set: { 
+                            selectedCostLevel = $0
+                            savedCost = $0?.rawValue ?? ""
+                        }
+                    )) {
+                        Text("Select Cost Level").tag(nil as CostLevel?)
                         ForEach(CostLevel.allCases, id: \.self) { cost in
                             Text(cost.description)
-                                .tag(cost)
+                                .tag(cost as CostLevel?)
                         }
                     }
                     .pickerStyle(.menu)
@@ -97,7 +128,13 @@ struct AddItineraryView: View {
                     VStack(alignment: .leading) {
                         Text("Noise Level: \(currentNoiseLevel.emoji) \(currentNoiseLevel.displayName)")
                             .fontWeight(.semibold)
-                        Slider(value: $noiseLevel, in: 1...4, step: 1)
+                        Slider(value: Binding(
+                            get: { noiseLevel },
+                            set: { 
+                                noiseLevel = $0
+                                savedNoiseLevel = $0
+                            }
+                        ), in: 1...4, step: 1)
                     }
                 }
                 
@@ -106,13 +143,17 @@ struct AddItineraryView: View {
                         NavigationLink(destination: EditStopView(
                             stop: Binding(
                                 get: { stops[index] },
-                                set: { stops[index] = $0 }
+                                set: { 
+                                    stops[index] = $0
+                                    saveDraftState()
+                                }
                             ),
                             onGeocode: { address in
                                 GeocodingHelper.shared.geocodeAddress(address) { coordinate in
                                     if let coordinate = coordinate {
                                         stops[index].latitude = coordinate.latitude
                                         stops[index].longitude = coordinate.longitude
+                                        saveDraftState()
                                     }
                                 }
                             }
@@ -139,6 +180,7 @@ struct AddItineraryView: View {
                             order: stops.count + 1
                         )
                         stops.append(newStop)
+                        saveDraftState()
                     }) {
                         HStack {
                             Image(systemName: "plus.circle.fill")
@@ -153,6 +195,8 @@ struct AddItineraryView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
+                        // Save draft state before dismissing
+                        saveDraftState()
                         dismiss()
                     }
                 }
@@ -169,6 +213,79 @@ struct AddItineraryView: View {
             } message: {
                 Text(errorMessage)
             }
+            .onAppear {
+                loadDraftState()
+            }
+            .onDisappear {
+                saveDraftState()
+            }
+        }
+    }
+    
+    private func loadDraftState() {
+        // Load category
+        if !savedCategory.isEmpty {
+            selectedCategory = ItineraryCategory.allCases.first { $0.rawValue == savedCategory && $0 != .all }
+        }
+        
+        // Load region
+        if !savedRegion.isEmpty {
+            selectedRegion = PhiladelphiaRegion.allCases.first { $0.rawValue == savedRegion && $0 != .all }
+        }
+        
+        // Load cost
+        if !savedCost.isEmpty {
+            selectedCostLevel = CostLevel.allCases.first { $0.rawValue == savedCost }
+        }
+        
+        // Load noise level
+        noiseLevel = savedNoiseLevel
+        
+        // Load stops from UserDefaults
+        if let stopsData = UserDefaults.standard.data(forKey: "draftItineraryStops"),
+           let decodedStops = try? JSONDecoder().decode([DraftStop].self, from: stopsData) {
+            stops = decodedStops.map { draftStop in
+                EditableStop(
+                    locationName: draftStop.locationName,
+                    address: draftStop.address,
+                    addressComponents: draftStop.addressComponents,
+                    latitude: draftStop.latitude,
+                    longitude: draftStop.longitude,
+                    notes: draftStop.notes,
+                    order: draftStop.order
+                )
+            }
+        }
+    }
+    
+    private func saveDraftState() {
+        // Save category
+        savedCategory = selectedCategory?.rawValue ?? ""
+        
+        // Save region
+        savedRegion = selectedRegion?.rawValue ?? ""
+        
+        // Save cost
+        savedCost = selectedCostLevel?.rawValue ?? ""
+        
+        // Save noise level
+        savedNoiseLevel = noiseLevel
+        
+        // Save stops to UserDefaults
+        let draftStops = stops.map { stop in
+            DraftStop(
+                locationName: stop.locationName,
+                address: stop.address,
+                addressComponents: stop.addressComponents,
+                latitude: stop.latitude,
+                longitude: stop.longitude,
+                notes: stop.notes,
+                order: stop.order
+            )
+        }
+        
+        if let encoded = try? JSONEncoder().encode(draftStops) {
+            UserDefaults.standard.set(encoded, forKey: "draftItineraryStops")
         }
     }
     
@@ -178,6 +295,7 @@ struct AddItineraryView: View {
         for (index, _) in stops.enumerated() {
             stops[index].order = index + 1
         }
+        saveDraftState()
     }
     
     private func submitItinerary() {
@@ -200,14 +318,20 @@ struct AddItineraryView: View {
             return
         }
         
-        guard selectedCategory != .all else {
+        guard let category = selectedCategory, category != .all else {
             errorMessage = "Please select a category"
             showError = true
             return
         }
         
-        guard selectedRegion != .all else {
+        guard let region = selectedRegion, region != .all else {
             errorMessage = "Please select a region"
+            showError = true
+            return
+        }
+        
+        guard let costLevel = selectedCostLevel else {
+            errorMessage = "Please select a cost level"
             showError = true
             return
         }
@@ -260,7 +384,7 @@ struct AddItineraryView: View {
             let newItinerary = Itinerary(
                 title: self.title.trimmingCharacters(in: .whitespaces),
                 description: self.description.trimmingCharacters(in: .whitespaces),
-                category: self.selectedCategory,
+                category: category,
                 authorID: MockData.currentUserId,
                 authorName: MockData.currentUser.username,
                 authorHandle: MockData.currentUser.handle,
@@ -269,18 +393,49 @@ struct AddItineraryView: View {
                 likes: 0,
                 comments: 0,
                 timeEstimate: Int(self.timeEstimate),
-                cost: self.selectedCostLevel.numericValue,
-                costLevel: self.selectedCostLevel,
+                cost: costLevel.numericValue,
+                costLevel: costLevel,
                 noiseLevel: self.currentNoiseLevel,
-                region: self.selectedRegion
+                region: region
             )
             
             // Add to shared manager
             self.itinerariesManager.addItinerary(newItinerary)
             self.isLoading = false
+            
+            // Clear draft state after successful submission
+            self.clearDraftState()
+            
             self.dismiss()
         }
     }
+    
+    private func clearDraftState() {
+        title = ""
+        description = ""
+        savedCategory = ""
+        savedRegion = ""
+        savedCost = ""
+        savedNoiseLevel = 2.0
+        timeEstimate = 2
+        selectedCategory = nil
+        selectedRegion = nil
+        selectedCostLevel = nil
+        noiseLevel = 2.0
+        stops = []
+        UserDefaults.standard.removeObject(forKey: "draftItineraryStops")
+    }
+}
+
+// MARK: - Draft Stop (for UserDefaults encoding)
+struct DraftStop: Codable {
+    let locationName: String
+    let address: String
+    let addressComponents: Address?
+    let latitude: Double
+    let longitude: Double
+    let notes: String?
+    let order: Int
 }
 
 // MARK: - Editable Stop

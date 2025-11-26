@@ -115,14 +115,7 @@ class HomeViewModel: ObservableObject {
     }
     
     func toggleMapExpansion() {
-        if isMapExpanded {
-            // Reset to default state when collapsing
-            selectedCategory = .all
-            selectedRegion = .all
-            selectedCostLevel = nil
-            selectedNoiseLevel = nil
-            selectedTimeEstimate = nil
-        }
+        // Don't reset filters when collapsing - keep them active
         isMapExpanded.toggle()
     }
     

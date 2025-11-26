@@ -10,6 +10,7 @@ import PhotosUI
 
 struct ProfileView: View {
     @StateObject private var viewModel = ProfileViewModel(user: MockData.currentUser)
+    @EnvironmentObject var authViewModel: AuthViewModel
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showImagePicker = false
     @State private var selectedItinerary: Itinerary?
@@ -24,6 +25,7 @@ struct ProfileView: View {
                 neighborhoodsSection
                 myItinerariesSection
                 savedItinerariesSection
+                signOutSection
             }
         }
         .background(Color.gray.opacity(0.1))
@@ -315,6 +317,32 @@ struct ProfileView: View {
             }
         }
         .padding(.horizontal, 20)
+    }
+    
+    // MARK: - Sign Out Section
+    private var signOutSection: some View {
+        VStack(spacing: 0) {
+            Divider()
+                .padding(.top, 20)
+            
+            Button(action: {
+                authViewModel.logout()
+            }) {
+                HStack {
+                    Image(systemName: "arrow.right.square")
+                        .font(.system(size: 18))
+                    Text("Sign Out")
+                        .font(.system(size: 18, weight: .semibold))
+                    Spacer()
+                }
+                .foregroundColor(.red)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+            
+            Divider()
+        }
+        .padding(.bottom, 20)
     }
 }
 

@@ -369,7 +369,11 @@ struct FilterSheetView: View {
             Form {
                 Section("Category") {
                     Picker("Category", selection: $viewModel.selectedCategory) {
-                        ForEach(ItineraryCategory.allCases, id: \.self) { category in
+                        // Show "All" first
+                        Text("\(ItineraryCategory.all.emoji) \(ItineraryCategory.all.rawValue)")
+                            .tag(ItineraryCategory.all)
+                        // Then show other categories
+                        ForEach(ItineraryCategory.allCases.filter { $0 != .all }, id: \.self) { category in
                             Text("\(category.emoji) \(category.rawValue)")
                                 .tag(category)
                         }
@@ -379,7 +383,11 @@ struct FilterSheetView: View {
                 
                 Section("Region") {
                     Picker("Region", selection: $viewModel.selectedRegion) {
-                        ForEach(PhiladelphiaRegion.allCases, id: \.self) { region in
+                        // Show "All Regions" first
+                        Text("\(PhiladelphiaRegion.all.emoji) \(PhiladelphiaRegion.all.rawValue)")
+                            .tag(PhiladelphiaRegion.all)
+                        // Then show other regions
+                        ForEach(PhiladelphiaRegion.allCases.filter { $0 != .all }, id: \.self) { region in
                             Text("\(region.emoji) \(region.rawValue)")
                                 .tag(region)
                         }

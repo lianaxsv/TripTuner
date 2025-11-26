@@ -8,6 +8,7 @@
 import Foundation
 
 enum PhiladelphiaRegion: String, Codable, CaseIterable {
+    case all = "All Regions"
     case centerCity = "Center City"
     case universityCity = "University City"
     case fishtown = "Fishtown"
@@ -17,7 +18,6 @@ enum PhiladelphiaRegion: String, Codable, CaseIterable {
     case southPhilly = "South Philly"
     case manayunk = "Manayunk"
     case fairmount = "Fairmount"
-    case all = "All Regions"
     
     var emoji: String {
         switch self {

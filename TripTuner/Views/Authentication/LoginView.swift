@@ -16,49 +16,46 @@ struct LoginView: View {
     
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            // Background gradient matching app theme
+            LinearGradient(
+                colors: [Color.pennRed.opacity(0.1), Color.pennBlue.opacity(0.1)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
             
-            VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Text("Login Page")
-                        .foregroundColor(.gray)
-                        .font(.system(size: 14))
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-                
-                // Main Card
-                VStack(spacing: 24) {
+            ScrollView {
+                VStack(spacing: 0) {
                     // Logo
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(
                                 LinearGradient(
-                                    colors: [Color.purple, Color.blue],
+                                    colors: [Color.pennRed, Color.pennBlue],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 )
                             )
                             .frame(width: 80, height: 80)
                         
-                        Image(systemName: "apple.logo")
+                        Image(systemName: "map.fill")
                             .font(.system(size: 40))
                             .foregroundColor(.white)
                     }
-                    .padding(.top, 40)
+                    .padding(.top, 60)
                     
                     // Welcome Text
                     VStack(spacing: 8) {
                         Text("Welcome Back")
                             .font(.system(size: 32, weight: .bold))
-                            .foregroundColor(.black)
+                            .foregroundColor(.pennRed)
                         
                         Text("Sign in to continue")
                             .font(.system(size: 16))
                             .foregroundColor(.gray)
                     }
+                    .padding(.top, 24)
+                    .padding(.bottom, 8)
                     
                     // Input Fields
                     VStack(spacing: 16) {
@@ -69,7 +66,7 @@ struct LoginView: View {
                             .keyboardType(.emailAddress)
                         
                         // Password Field
-                        VStack(alignment: .trailing, spacing: 8) {
+                        VStack(alignment: .trailing, spacing: 4) {
                             if showPassword {
                                 TextField("Password", text: $password)
                                     .autocapitalization(.none)
@@ -80,12 +77,13 @@ struct LoginView: View {
                             Button(action: { showPassword.toggle() }) {
                                 Image(systemName: showPassword ? "eye.slash.fill" : "eye.fill")
                                     .foregroundColor(.gray)
-                                    .font(.system(size: 16))
+                                    .font(.system(size: 14))
                             }
                         }
                         .textFieldStyle(LoginTextFieldStyle())
                     }
                     .padding(.horizontal, 20)
+                    .padding(.top, 8)
                     
                     // Forgot Password
                     HStack {
@@ -93,10 +91,11 @@ struct LoginView: View {
                         Button("Forgot Password?") {
                             // Handle forgot password
                         }
-                        .foregroundColor(.blue)
+                        .foregroundColor(.pennRed)
                         .font(.system(size: 14))
                     }
                     .padding(.horizontal, 20)
+                    .padding(.top, 8)
                     
                     // Sign In Button
                     Button(action: {
@@ -107,10 +106,17 @@ struct LoginView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 50)
-                            .background(Color.blue)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color.pennRed, Color.pennBlue],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
                             .cornerRadius(12)
                     }
                     .padding(.horizontal, 20)
+                    .padding(.top, 24)
                     .disabled(viewModel.isLoading)
                     
                     // Separator
@@ -127,6 +133,7 @@ struct LoginView: View {
                             .frame(height: 1)
                     }
                     .padding(.horizontal, 20)
+                    .padding(.top, 32)
                     
                     // Social Login Buttons
                     VStack(spacing: 12) {
@@ -135,9 +142,11 @@ struct LoginView: View {
                             // Handle Google login
                         }) {
                             HStack {
-                                Image(systemName: "globe")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.blue)
+                                Image("GoogleLogo")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 20, height: 20)
+                                
                                 Text("Continue with Google")
                                     .font(.system(size: 16, weight: .medium))
                                     .foregroundColor(.black)
@@ -173,6 +182,7 @@ struct LoginView: View {
                         }
                     }
                     .padding(.horizontal, 20)
+                    .padding(.top, 12)
                     
                     // Sign Up Link
                     HStack(spacing: 4) {
@@ -182,17 +192,17 @@ struct LoginView: View {
                         Button("Sign Up") {
                             showSignUp = true
                         }
-                        .foregroundColor(.blue)
+                        .foregroundColor(.pennRed)
                         .font(.system(size: 14, weight: .medium))
                     }
+                    .padding(.top, 24)
                     .padding(.bottom, 40)
                 }
                 .background(Color.white)
                 .cornerRadius(24)
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
-                
-                Spacer()
+                .padding(.bottom, 40)
             }
         }
         .sheet(isPresented: $showSignUp) {

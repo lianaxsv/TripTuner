@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @EnvironmentObject var authViewModel: AuthViewModel
     @State private var selectedTab = 0
     @State private var showAddItinerary = false
     
@@ -32,6 +33,7 @@ struct MainTabView: View {
                 .tag(2)
             
             ProfileView()
+                .environmentObject(authViewModel)
                 .tabItem {
                     Label("Profile", systemImage: "person.fill")
                 }
@@ -111,7 +113,7 @@ struct AddPostTabView: View {
                                         selectedItinerary = itinerary
                                         showItineraryDetail = true
                                     }) {
-                                        VStack(alignment: .leading, spacing: 8) {
+                                        VStack(alignment: .leading, spacing: 0) {
                                             ZStack {
                                                 RoundedRectangle(cornerRadius: 12)
                                                     .fill(
@@ -127,19 +129,24 @@ struct AddPostTabView: View {
                                                     .font(.system(size: 40))
                                             }
                                             
-                                            Text(itinerary.title)
-                                                .font(.system(size: 16, weight: .bold))
-                                                .foregroundColor(.black)
-                                                .lineLimit(2)
-                                            
-                                            HStack {
-                                                Image(systemName: "hand.thumbsup.fill")
-                                                    .font(.system(size: 12))
-                                                    .foregroundColor(.pennRed)
-                                                Text("\(itinerary.likes)")
-                                                    .font(.system(size: 12))
-                                                    .foregroundColor(.gray)
+                                            VStack(alignment: .leading, spacing: 8) {
+                                                Text(itinerary.title)
+                                                    .font(.system(size: 16, weight: .bold))
+                                                    .foregroundColor(.black)
+                                                    .lineLimit(2)
+                                                    .padding(.top, 12)
+                                                
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "hand.thumbsup.fill")
+                                                        .font(.system(size: 12))
+                                                        .foregroundColor(.pennRed)
+                                                    Text("\(itinerary.likes)")
+                                                        .font(.system(size: 12, weight: .medium))
+                                                        .foregroundColor(.gray)
+                                                }
+                                                .padding(.bottom, 12)
                                             }
+                                            .padding(.horizontal, 12)
                                         }
                                         .frame(maxWidth: .infinity)
                                         .background(Color.white)

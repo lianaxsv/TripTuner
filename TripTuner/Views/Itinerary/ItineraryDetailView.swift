@@ -12,15 +12,19 @@ struct ItineraryDetailView: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var savedManager = SavedItinerariesManager.shared
     @StateObject private var completedManager = CompletedItinerariesManager.shared
+    @StateObject private var likedManager = LikedItinerariesManager.shared
     @StateObject private var commentsViewModel: CommentsViewModel
-    @State private var isLiked = false
+    @State private var isLiked: Bool
     @State private var likeCount: Int
     @State private var showComments = false
     
     init(itinerary: Itinerary) {
         self.itinerary = itinerary
-        _isLiked = State(initialValue: itinerary.isLiked)
-        _likeCount = State(initialValue: itinerary.likes)
+        let likedManager = LikedItinerariesManager.shared
+        let liked = likedManager.isLiked(itinerary.id)
+        let count = likedManager.getLikeCount(for: itinerary.id, defaultCount: itinerary.likes)
+        _isLiked = State(initialValue: liked)
+        _likeCount = State(initialValue: count)
         _commentsViewModel = StateObject(wrappedValue: CommentsViewModel(itineraryID: itinerary.id))
     }
     
@@ -98,8 +102,11 @@ struct ItineraryDetailView: View {
                     // Engagement Metrics
                     HStack(spacing: 24) {
                         Button(action: {
-                            isLiked.toggle()
-                            likeCount += isLiked ? 1 : -1
+                            let newCount = likedManager.toggleLike(itinerary.id, currentCount: likeCount)
+                            isLiked = likedManager.isLiked(itinerary.id)
+                            likeCount = newCount
+                            // Update the itinerary in the manager
+                            ItinerariesManager.shared.updateLikeCount(for: itinerary.id, newCount: newCount)
                         }) {
                             HStack(spacing: 8) {
                                 Image(systemName: isLiked ? "hand.thumbsup.fill" : "hand.thumbsup")

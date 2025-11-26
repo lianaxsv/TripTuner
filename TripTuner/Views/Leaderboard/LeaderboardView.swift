@@ -14,19 +14,7 @@ struct LeaderboardView: View {
         ZStack {
             Color.gray.opacity(0.1).ignoresSafeArea()
             
-            VStack(spacing: 0) {
-                // Top Header
-                HStack {
-                    Text("Leaderboard")
-                        .font(.system(size: 16))
-                        .foregroundColor(.gray)
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
-                .background(Color.gray.opacity(0.2))
-                
-                ScrollView {
+            ScrollView {
                     VStack(spacing: 0) {
                         // Leaderboard Title
                         HStack {
@@ -108,7 +96,6 @@ struct LeaderboardView: View {
             }
         }
     }
-}
 
 struct PodiumView: View {
     let entry: LeaderboardEntry

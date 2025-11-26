@@ -74,10 +74,10 @@ struct Itinerary: Identifiable, Codable {
 }
 
 enum ItineraryCategory: String, Codable, CaseIterable {
+    case all = "All"
     case restaurants = "Restaurants"
     case cafes = "Cafes"
     case attractions = "Attractions"
-    case all = "All"
     
     var emoji: String {
         switch self {
