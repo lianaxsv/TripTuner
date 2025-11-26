@@ -12,6 +12,7 @@ struct HomeView: View {
     @StateObject private var viewModel = HomeViewModel()
     @State private var showItineraryDetail = false
     @State private var showAddItinerary = false
+    @State private var showFilterSheet = false
     
     var body: some View {
         ZStack {
@@ -32,6 +33,9 @@ struct HomeView: View {
         }
         .sheet(isPresented: $showAddItinerary) {
             AddItineraryView()
+        }
+        .sheet(isPresented: $showFilterSheet) {
+            FilterSheetView(viewModel: viewModel)
         }
     }
     
@@ -58,8 +62,10 @@ struct HomeView: View {
                                 .foregroundColor(.gray)
                         }
                         
-                        Button(action: {}) {
-                            Image(systemName: "list.bullet")
+                        Button(action: {
+                            showFilterSheet = true
+                        }) {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
                                 .font(.system(size: 20))
                                 .foregroundColor(.gray)
                         }
@@ -160,40 +166,47 @@ struct HomeView: View {
                 }
                 .padding(.bottom, 24)
                 
-                // Category Filters (only show if category is selected)
-                if viewModel.selectedCategory != .all {
+                // Active Filters Display
+                if hasActiveFilters {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Filtering: \(viewModel.selectedCategory.rawValue)")
-                            .font(.system(size: 16, weight: .semibold))
-                            .padding(.horizontal, 20)
+                        HStack {
+                            Text("Active Filters")
+                                .font(.system(size: 16, weight: .semibold))
+                            Spacer()
+                            Button(action: {
+                                viewModel.clearAllFilters()
+                            }) {
+                                Text("Clear All")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.pennRed)
+                            }
+                        }
+                        .padding(.horizontal, 20)
                         
                         ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                ForEach(ItineraryCategory.allCases.filter { $0 != .all }, id: \.self) { category in
-                                    CategoryFilterChip(
-                                        category: category,
-                                        isSelected: viewModel.selectedCategory == category,
-                                        action: {
-                                            viewModel.selectCategory(category)
-                                        }
-                                    )
+                            HStack(spacing: 8) {
+                                if viewModel.selectedCategory != .all {
+                                    FilterTag(text: viewModel.selectedCategory.rawValue, emoji: viewModel.selectedCategory.emoji) {
+                                        viewModel.selectCategory(.all)
+                                    }
                                 }
                                 
-                                // Clear filter button
-                                Button(action: {
-                                    viewModel.selectCategory(.all)
-                                }) {
-                                    Text("Clear")
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(.gray)
-                                        .padding(.horizontal, 16)
-                                        .padding(.vertical, 8)
-                                        .background(Color.white)
-                                        .cornerRadius(20)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 20)
-                                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                        )
+                                if viewModel.selectedRegion != .all {
+                                    FilterTag(text: viewModel.selectedRegion.rawValue, emoji: viewModel.selectedRegion.emoji) {
+                                        viewModel.selectedRegion = .all
+                                    }
+                                }
+                                
+                                if let cost = viewModel.selectedCostLevel {
+                                    FilterTag(text: cost.description, emoji: nil) {
+                                        viewModel.selectedCostLevel = nil
+                                    }
+                                }
+                                
+                                if let noise = viewModel.selectedNoiseLevel {
+                                    FilterTag(text: noise.displayName, emoji: noise.emoji) {
+                                        viewModel.selectedNoiseLevel = nil
+                                    }
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -207,7 +220,7 @@ struct HomeView: View {
                     Text("Discover amazing trips in Philadelphia")
                         .font(.system(size: 14))
                         .foregroundColor(.gray)
-                    Text("Select a category to filter itineraries on the map")
+                    Text("Use the filter icon to customize your search")
                         .font(.system(size: 12))
                         .foregroundColor(.gray.opacity(0.7))
                 }
@@ -219,6 +232,13 @@ struct HomeView: View {
         .refreshable {
             viewModel.refreshItineraries()
         }
+    }
+    
+    private var hasActiveFilters: Bool {
+        viewModel.selectedCategory != .all ||
+        viewModel.selectedRegion != .all ||
+        viewModel.selectedCostLevel != nil ||
+        viewModel.selectedNoiseLevel != nil
     }
     
     // MARK: - Expanded Map View
@@ -245,7 +265,7 @@ struct HomeView: View {
             .ignoresSafeArea()
             
             VStack {
-                // Top Bar with Close Button
+                // Top Bar with Close Button and Filter
                 HStack {
                     Button(action: {
                         viewModel.toggleMapExpansion()
@@ -259,50 +279,66 @@ struct HomeView: View {
                     
                     Spacer()
                     
-                    Text("Explore Map")
-                        .font(.system(size: 18, weight: .semibold))
+                    Button(action: {
+                        showFilterSheet = true
+                    }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                            if hasActiveFilters {
+                                Image(systemName: "circle.fill")
+                                    .font(.system(size: 8))
+                                    .foregroundColor(.pennRed)
+                            }
+                        }
+                        .font(.system(size: 18))
                         .foregroundColor(.white)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
                         .background(Color.black.opacity(0.5))
                         .cornerRadius(20)
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 10)
                 
                 Spacer()
                 
-                // Category Filters (always visible in expanded map)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(ItineraryCategory.allCases.filter { $0 != .all }, id: \.self) { category in
-                            CategoryFilterChip(
-                                category: category,
-                                isSelected: viewModel.selectedCategory == category,
-                                action: {
-                                    viewModel.selectCategory(category)
+                // Active Filters Display
+                if hasActiveFilters {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            if viewModel.selectedCategory != .all {
+                                FilterTag(text: viewModel.selectedCategory.rawValue, emoji: viewModel.selectedCategory.emoji) {
+                                    viewModel.selectCategory(.all)
                                 }
-                            )
+                            }
+                            
+                            if viewModel.selectedRegion != .all {
+                                FilterTag(text: viewModel.selectedRegion.rawValue, emoji: viewModel.selectedRegion.emoji) {
+                                    viewModel.selectedRegion = .all
+                                }
+                            }
+                            
+                            if let cost = viewModel.selectedCostLevel {
+                                FilterTag(text: cost.description, emoji: nil) {
+                                    viewModel.selectedCostLevel = nil
+                                }
+                            }
+                            
+                            if let noise = viewModel.selectedNoiseLevel {
+                                FilterTag(text: noise.displayName, emoji: noise.emoji) {
+                                    viewModel.selectedNoiseLevel = nil
+                                }
+                            }
                         }
-                        
-                        // Clear filter button
-                        Button(action: {
-                            viewModel.selectCategory(.all)
-                        }) {
-                            Text("All")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(viewModel.selectedCategory == .all ? .white : .black)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(viewModel.selectedCategory == .all ? Color.pennRed : Color.white)
-                                .cornerRadius(20)
-                                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-                        }
+                        .padding(.horizontal, 20)
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.bottom, 20)
                 }
-                .padding(.bottom, 20)
             }
+        }
+        .sheet(isPresented: $showFilterSheet) {
+            FilterSheetView(viewModel: viewModel)
         }
     }
     
@@ -312,6 +348,116 @@ struct HomeView: View {
         case .cafes: return .yellow
         case .attractions: return .blue
         case .all: return .gray
+        }
+    }
+}
+
+// MARK: - Filter Sheet View
+struct FilterSheetView: View {
+    @ObservedObject var viewModel: HomeViewModel
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section("Category") {
+                    Picker("Category", selection: $viewModel.selectedCategory) {
+                        ForEach(ItineraryCategory.allCases, id: \.self) { category in
+                            HStack {
+                                Text(category.emoji)
+                                Text(category.rawValue)
+                            }
+                            .tag(category)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+                
+                Section("Region") {
+                    Picker("Region", selection: $viewModel.selectedRegion) {
+                        ForEach(PhiladelphiaRegion.allCases, id: \.self) { region in
+                            HStack {
+                                Text(region.emoji)
+                                Text(region.rawValue)
+                            }
+                            .tag(region)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+                
+                Section("Cost") {
+                    Picker("Cost", selection: Binding(
+                        get: { viewModel.selectedCostLevel },
+                        set: { viewModel.selectedCostLevel = $0 }
+                    )) {
+                        Text("Any").tag(nil as CostLevel?)
+                        ForEach(CostLevel.allCases, id: \.self) { cost in
+                            Text(cost.description)
+                                .tag(cost as CostLevel?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+                
+                Section("Noise Level") {
+                    Picker("Noise Level", selection: Binding(
+                        get: { viewModel.selectedNoiseLevel },
+                        set: { viewModel.selectedNoiseLevel = $0 }
+                    )) {
+                        Text("Any").tag(nil as NoiseLevel?)
+                        ForEach(NoiseLevel.allCases, id: \.self) { noise in
+                            HStack {
+                                Text(noise.emoji)
+                                Text(noise.displayName)
+                            }
+                            .tag(noise as NoiseLevel?)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
+            .navigationTitle("Filters")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Clear All") {
+                        viewModel.clearAllFilters()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Filter Tag
+struct FilterTag: View {
+    let text: String
+    let emoji: String?
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                if let emoji = emoji {
+                    Text(emoji)
+                }
+                Text(text)
+                    .font(.system(size: 12, weight: .medium))
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 10))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.pennRed)
+            .cornerRadius(16)
         }
     }
 }
@@ -384,34 +530,15 @@ struct TopItineraryCard: View {
     }
     
     private var costString: String {
+        if let costLevel = itinerary.costLevel {
+            return costLevel.displayName
+        }
         if let cost = itinerary.cost {
             if cost < 25 { return "$" }
             else if cost < 50 { return "$$" }
             else { return "$$$" }
         }
         return "Free"
-    }
-}
-
-struct CategoryFilterChip: View {
-    let category: ItineraryCategory
-    let isSelected: Bool
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Text(category.emoji)
-                Text(category.rawValue)
-                    .font(.system(size: 14, weight: .medium))
-            }
-            .foregroundColor(isSelected ? .white : .black)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(isSelected ? Color.pennRed : Color.white)
-            .cornerRadius(20)
-            .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
-        }
     }
 }
 

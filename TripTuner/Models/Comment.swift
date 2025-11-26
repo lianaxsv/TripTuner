@@ -16,8 +16,10 @@ struct Comment: Identifiable, Codable {
     var itineraryID: String
     var content: String
     var likes: Int
+    var dislikes: Int
     var createdAt: Date
     var isLiked: Bool
+    var isDisliked: Bool
     var replies: [Comment]
     var parentCommentID: String?
     
@@ -29,8 +31,10 @@ struct Comment: Identifiable, Codable {
          itineraryID: String,
          content: String,
          likes: Int = 0,
+         dislikes: Int = 0,
          createdAt: Date = Date(),
          isLiked: Bool = false,
+         isDisliked: Bool = false,
          replies: [Comment] = [],
          parentCommentID: String? = nil) {
         self.id = id
@@ -41,8 +45,10 @@ struct Comment: Identifiable, Codable {
         self.itineraryID = itineraryID
         self.content = content
         self.likes = likes
+        self.dislikes = dislikes
         self.createdAt = createdAt
         self.isLiked = isLiked
+        self.isDisliked = isDisliked
         self.replies = replies
         self.parentCommentID = parentCommentID
     }

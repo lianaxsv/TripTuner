@@ -28,7 +28,7 @@ struct ProfileView: View {
         }
         .background(Color.gray.opacity(0.1))
         .photosPicker(isPresented: $showImagePicker, selection: $selectedPhoto, matching: .images)
-        .onChange(of: selectedPhoto) { newValue in
+        .onChange(of: selectedPhoto) { oldValue, newValue in
             Task {
                 if let data = try? await newValue?.loadTransferable(type: Data.self),
                    let image = UIImage(data: data) {
@@ -47,9 +47,12 @@ struct ProfileView: View {
             if let itinerary = selectedItinerary {
                 ItineraryDetailView(itinerary: itinerary)
                     .onDisappear {
-                        viewModel.refreshSavedItineraries()
+                        viewModel.refreshStats()
                     }
             }
+        }
+        .onAppear {
+            viewModel.refreshStats()
         }
     }
     
@@ -218,32 +221,32 @@ struct ProfileView: View {
         }
     }
     
-    // MARK: - My Itineraries Section
+    // MARK: - Completed Itineraries Section
     private var myItinerariesSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("My Itineraries")
+            Text("Itineraries I Did")
                 .font(.system(size: 20, weight: .bold))
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
             
-            if viewModel.userItineraries.isEmpty {
-                emptyMyItinerariesView
+            if viewModel.completedItineraries.isEmpty {
+                emptyCompletedItinerariesView
             } else {
-                myItinerariesGrid
+                completedItinerariesGrid
             }
         }
         .padding(.bottom, 20)
     }
     
-    private var emptyMyItinerariesView: some View {
+    private var emptyCompletedItinerariesView: some View {
         VStack(spacing: 12) {
-            Image(systemName: "map")
+            Image(systemName: "checkmark.circle")
                 .font(.system(size: 40))
                 .foregroundColor(.gray.opacity(0.5))
-            Text("No itineraries yet")
+            Text("No completed trips yet")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(.gray)
-            Text("Create your first itinerary to get started!")
+            Text("Complete an itinerary to see it here!")
                 .font(.system(size: 14))
                 .foregroundColor(.gray.opacity(0.7))
                 .multilineTextAlignment(.center)
@@ -252,14 +255,14 @@ struct ProfileView: View {
         .padding(.vertical, 40)
     }
     
-    private var myItinerariesGrid: some View {
+    private var completedItinerariesGrid: some View {
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 2) {
-            ForEach(viewModel.userItineraries) { itinerary in
+            ForEach(viewModel.completedItineraries) { itinerary in
                 Button(action: {
                     selectedItinerary = itinerary
                     showItineraryDetail = true
                 }) {
-                    ItineraryGridItem(itinerary: itinerary, gradientColors: [Color.pennRed.opacity(0.6), Color.pennBlue.opacity(0.6)])
+                    ItineraryGridItem(itinerary: itinerary, gradientColors: [Color.green.opacity(0.6), Color.pennBlue.opacity(0.6)])
                 }
             }
         }

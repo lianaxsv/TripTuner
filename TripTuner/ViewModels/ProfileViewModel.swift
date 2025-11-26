@@ -10,7 +10,7 @@ import SwiftUI
 
 class ProfileViewModel: ObservableObject {
     @Published var user: User
-    @Published var userItineraries: [Itinerary] = []
+    @Published var completedItineraries: [Itinerary] = []
     @Published var savedItineraries: [Itinerary] = []
     @Published var milesTraveled: Double = 47.3
     @Published var neighborhoodsExplored: Int = 12
@@ -21,6 +21,8 @@ class ProfileViewModel: ObservableObject {
     @Published var selectedAchievement: Achievement?
     
     private let savedManager = SavedItinerariesManager.shared
+    private let completedManager = CompletedItinerariesManager.shared
+    private let itinerariesManager = ItinerariesManager.shared
     
     init(user: User) {
         self.user = user
@@ -29,18 +31,15 @@ class ProfileViewModel: ObservableObject {
     
     func loadUserData() {
         isLoading = true
-        // Mock data loading - user's own itineraries
+        // Mock data loading
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            // Only show itineraries created by this user
-            self.userItineraries = MockData.sampleItineraries.filter { $0.authorID == self.user.id }
+            // Get completed itineraries
+            self.completedItineraries = self.completedManager.getCompletedItineraries(from: self.itinerariesManager.itineraries)
             // Get saved itineraries from manager
-            self.savedItineraries = self.savedManager.getSavedItineraries(from: MockData.sampleItineraries)
+            self.savedItineraries = self.savedManager.getSavedItineraries(from: self.itinerariesManager.itineraries)
+            self.tripsCompleted = self.completedItineraries.count
             self.isLoading = false
         }
-    }
-    
-    func refreshSavedItineraries() {
-        savedItineraries = savedManager.getSavedItineraries(from: MockData.sampleItineraries)
     }
     
     func refreshStats() {
@@ -52,4 +51,3 @@ class ProfileViewModel: ObservableObject {
         showAchievementDetail = true
     }
 }
-

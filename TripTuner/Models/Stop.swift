@@ -12,6 +12,7 @@ struct Stop: Identifiable, Codable {
     let id: String
     var locationName: String
     var address: String
+    var addressComponents: Address?
     var latitude: Double
     var longitude: Double
     var notes: String?
@@ -24,6 +25,7 @@ struct Stop: Identifiable, Codable {
     init(id: String = UUID().uuidString,
          locationName: String,
          address: String,
+         addressComponents: Address? = nil,
          latitude: Double,
          longitude: Double,
          notes: String? = nil,
@@ -31,6 +33,7 @@ struct Stop: Identifiable, Codable {
         self.id = id
         self.locationName = locationName
         self.address = address
+        self.addressComponents = addressComponents
         self.latitude = latitude
         self.longitude = longitude
         self.notes = notes

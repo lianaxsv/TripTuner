@@ -23,6 +23,9 @@ struct Itinerary: Identifiable, Codable {
     var comments: Int
     var timeEstimate: Int // in hours
     var cost: Double?
+    var costLevel: CostLevel?
+    var noiseLevel: NoiseLevel?
+    var region: PhiladelphiaRegion?
     var createdAt: Date
     var isLiked: Bool
     var isSaved: Bool
@@ -41,6 +44,9 @@ struct Itinerary: Identifiable, Codable {
          comments: Int = 0,
          timeEstimate: Int,
          cost: Double? = nil,
+         costLevel: CostLevel? = nil,
+         noiseLevel: NoiseLevel? = nil,
+         region: PhiladelphiaRegion? = nil,
          createdAt: Date = Date(),
          isLiked: Bool = false,
          isSaved: Bool = false) {
@@ -58,6 +64,9 @@ struct Itinerary: Identifiable, Codable {
         self.comments = comments
         self.timeEstimate = timeEstimate
         self.cost = cost
+        self.costLevel = costLevel
+        self.noiseLevel = noiseLevel
+        self.region = region
         self.createdAt = createdAt
         self.isLiked = isLiked
         self.isSaved = isSaved

@@ -11,20 +11,25 @@ struct ItineraryDetailView: View {
     let itinerary: Itinerary
     @Environment(\.dismiss) var dismiss
     @StateObject private var savedManager = SavedItinerariesManager.shared
-    @StateObject private var commentsViewModel = CommentsViewModel(itineraryID: "")
+    @StateObject private var completedManager = CompletedItinerariesManager.shared
+    @StateObject private var commentsViewModel: CommentsViewModel
     @State private var isLiked = false
     @State private var likeCount: Int
     @State private var showComments = false
-    @State private var newCommentText = ""
     
     init(itinerary: Itinerary) {
         self.itinerary = itinerary
         _isLiked = State(initialValue: itinerary.isLiked)
         _likeCount = State(initialValue: itinerary.likes)
+        _commentsViewModel = StateObject(wrappedValue: CommentsViewModel(itineraryID: itinerary.id))
     }
     
     var isSaved: Bool {
         savedManager.isSaved(itinerary.id)
+    }
+    
+    var isCompleted: Bool {
+        completedManager.isCompleted(itinerary.id)
     }
     
     var body: some View {
@@ -110,7 +115,7 @@ struct ItineraryDetailView: View {
                             HStack(spacing: 8) {
                                 Image(systemName: "bubble.left")
                                     .foregroundColor(.gray)
-                                Text("\(itinerary.comments)")
+                                Text("\(commentsViewModel.totalCommentCount)")
                                     .font(.system(size: 16, weight: .medium))
                             }
                         }
@@ -152,13 +157,26 @@ struct ItineraryDetailView: View {
                                     .font(.system(size: 16, weight: .semibold))
                             }
                             
-                            if let cost = itinerary.cost {
+                            if let costLevel = itinerary.costLevel {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Cost")
                                         .font(.system(size: 12))
                                         .foregroundColor(.gray)
-                                    Text("$\(Int(cost))")
+                                    Text(costLevel.displayName)
                                         .font(.system(size: 16, weight: .semibold))
+                                }
+                            }
+                            
+                            if let noiseLevel = itinerary.noiseLevel {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Noise")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.gray)
+                                    HStack(spacing: 4) {
+                                        Text(noiseLevel.emoji)
+                                        Text(noiseLevel.displayName)
+                                    }
+                                    .font(.system(size: 16, weight: .semibold))
                                 }
                             }
                         }
@@ -179,14 +197,16 @@ struct ItineraryDetailView: View {
                     
                     // I Did This Trip Button
                     Button(action: {
-                        // Handle trip completion
+                        if !isCompleted {
+                            completedManager.markCompleted(itinerary.id)
+                        }
                     }) {
-                        Text("I Did This Trip!")
+                        Text(isCompleted ? "✓ Completed This Trip!" : "I Did This Trip!")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 50)
-                            .background(Color.pennRed)
+                            .background(isCompleted ? Color.green : Color.pennRed)
                             .cornerRadius(12)
                     }
                     .padding(.horizontal, 20)
@@ -204,9 +224,6 @@ struct ItineraryDetailView: View {
         }
         .sheet(isPresented: $showComments) {
             CommentsView(itineraryID: itinerary.id, commentsViewModel: commentsViewModel)
-        }
-        .onAppear {
-            commentsViewModel.itineraryID = itinerary.id
         }
     }
 }
@@ -284,6 +301,7 @@ class CommentsViewModel: ObservableObject {
                     itineraryID: self.itineraryID,
                     content: "This looks amazing! Can't wait to try it.",
                     likes: 12,
+                    dislikes: 2,
                     createdAt: Date().addingTimeInterval(-7200)
                 ),
                 Comment(
@@ -293,6 +311,7 @@ class CommentsViewModel: ObservableObject {
                     itineraryID: self.itineraryID,
                     content: "I did this last weekend and it was fantastic!",
                     likes: 8,
+                    dislikes: 1,
                     createdAt: Date().addingTimeInterval(-3600)
                 )
             ]
@@ -308,9 +327,40 @@ class CommentsViewModel: ObservableObject {
             itineraryID: itineraryID,
             content: content,
             likes: 0,
+            dislikes: 0,
             createdAt: Date()
         )
         comments.insert(newComment, at: 0)
+    }
+    
+    func addReply(to parentID: String, content: String) {
+        if let parentIndex = comments.firstIndex(where: { $0.id == parentID }) {
+            let reply = Comment(
+                authorID: MockData.currentUserId,
+                authorName: MockData.currentUser.username,
+                authorHandle: MockData.currentUser.handle,
+                itineraryID: itineraryID,
+                content: content,
+                likes: 0,
+                dislikes: 0,
+                createdAt: Date(),
+                parentCommentID: parentID
+            )
+            comments[parentIndex].replies.append(reply)
+        }
+    }
+    
+    func deleteComment(_ commentID: String) {
+        // Remove from main comments
+        comments.removeAll { $0.id == commentID }
+        // Remove from replies
+        for index in comments.indices {
+            comments[index].replies.removeAll { $0.id == commentID }
+        }
+    }
+    
+    var totalCommentCount: Int {
+        comments.count + comments.reduce(0) { $0 + $1.replies.count }
     }
 }
 
@@ -319,6 +369,8 @@ struct CommentsView: View {
     @ObservedObject var commentsViewModel: CommentsViewModel
     @Environment(\.dismiss) var dismiss
     @State private var newCommentText = ""
+    @State private var replyingTo: Comment?
+    @State private var replyText = ""
     
     var body: some View {
         NavigationView {
@@ -341,12 +393,76 @@ struct CommentsView: View {
                             .padding(.vertical, 40)
                         } else {
                             ForEach(commentsViewModel.comments) { comment in
-                                CommentRowView(comment: comment)
-                                    .padding(.horizontal, 20)
+                                CommentRowView(
+                                    comment: comment,
+                                    commentsViewModel: commentsViewModel,
+                                    onReply: { parentComment in
+                                        replyingTo = parentComment
+                                    }
+                                )
+                                .padding(.horizontal, 20)
+                                
+                                // Show replies
+                                if !comment.replies.isEmpty {
+                                    ForEach(comment.replies) { reply in
+                                        CommentRowView(
+                                            comment: reply,
+                                            commentsViewModel: commentsViewModel,
+                                            isReply: true
+                                        )
+                                        .padding(.leading, 60)
+                                        .padding(.trailing, 20)
+                                    }
+                                }
                             }
                         }
                     }
                     .padding(.top, 20)
+                }
+                
+                // Reply Input (if replying)
+                if let parentComment = replyingTo {
+                    VStack(spacing: 8) {
+                        HStack {
+                            Text("Replying to \(parentComment.authorName)")
+                                .font(.system(size: 12))
+                                .foregroundColor(.gray)
+                            Spacer()
+                            Button("Cancel") {
+                                replyingTo = nil
+                                replyText = ""
+                            }
+                            .font(.system(size: 12))
+                            .foregroundColor(.blue)
+                        }
+                        .padding(.horizontal, 16)
+                        
+                        HStack(spacing: 12) {
+                            TextField("Write a reply...", text: $replyText, axis: .vertical)
+                                .textFieldStyle(.roundedBorder)
+                                .lineLimit(1...4)
+                            
+                            Button(action: {
+                                if !replyText.trimmingCharacters(in: .whitespaces).isEmpty {
+                                    commentsViewModel.addReply(to: parentComment.id, content: replyText)
+                                    replyText = ""
+                                    replyingTo = nil
+                                }
+                            }) {
+                                Text("Reply")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(replyText.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray : Color.pennRed)
+                                    .cornerRadius(8)
+                            }
+                            .disabled(replyText.trimmingCharacters(in: .whitespaces).isEmpty)
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    .padding(.vertical, 8)
+                    .background(Color.gray.opacity(0.05))
                 }
                 
                 // Comment Input
@@ -389,13 +505,28 @@ struct CommentsView: View {
 
 struct CommentRowView: View {
     let comment: Comment
+    @ObservedObject var commentsViewModel: CommentsViewModel
+    var isReply: Bool = false
+    var onReply: ((Comment) -> Void)?
     @State private var isLiked = false
+    @State private var isDisliked = false
     @State private var likeCount: Int
+    @State private var dislikeCount: Int
+    @State private var showDeleteAlert = false
     
-    init(comment: Comment) {
+    init(comment: Comment, commentsViewModel: CommentsViewModel, isReply: Bool = false, onReply: ((Comment) -> Void)? = nil) {
         self.comment = comment
+        self.commentsViewModel = commentsViewModel
+        self.isReply = isReply
+        self.onReply = onReply
         _isLiked = State(initialValue: comment.isLiked)
+        _isDisliked = State(initialValue: comment.isDisliked)
         _likeCount = State(initialValue: comment.likes)
+        _dislikeCount = State(initialValue: comment.dislikes)
+    }
+    
+    var canDelete: Bool {
+        comment.authorID == MockData.currentUserId
     }
     
     var body: some View {
@@ -417,11 +548,25 @@ struct CommentRowView: View {
                         .font(.system(size: 12))
                         .foregroundColor(.gray)
                     
-                    Button("Reply") {
-                        // Handle reply
+                    if !isReply, let onReply = onReply {
+                        Button(action: {
+                            onReply(comment)
+                        }) {
+                            Text("Reply")
+                                .font(.system(size: 12))
+                                .foregroundColor(.blue)
+                        }
                     }
-                    .font(.system(size: 12))
-                    .foregroundColor(.blue)
+                    
+                    if canDelete {
+                        Button(action: {
+                            showDeleteAlert = true
+                        }) {
+                            Text("Delete")
+                                .font(.system(size: 12))
+                                .foregroundColor(.red)
+                        }
+                    }
                 }
                 .padding(.top, 4)
             }
@@ -430,8 +575,16 @@ struct CommentRowView: View {
             
             VStack(spacing: 4) {
                 Button(action: {
+                    if isDisliked {
+                        isDisliked = false
+                        dislikeCount = max(0, dislikeCount - 1)
+                    }
                     isLiked.toggle()
-                    likeCount += isLiked ? 1 : -1
+                    if isLiked {
+                        likeCount += 1
+                    } else {
+                        likeCount = max(0, likeCount - 1)
+                    }
                 }) {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 12))
@@ -440,14 +593,36 @@ struct CommentRowView: View {
                 Text("\(likeCount)")
                     .font(.system(size: 12))
                     .foregroundColor(.gray)
-                Button(action: {}) {
+                Button(action: {
+                    if isLiked {
+                        isLiked = false
+                        likeCount = max(0, likeCount - 1)
+                    }
+                    isDisliked.toggle()
+                    if isDisliked {
+                        dislikeCount += 1
+                    } else {
+                        dislikeCount = max(0, dislikeCount - 1)
+                    }
+                }) {
                     Image(systemName: "arrow.down")
                         .font(.system(size: 12))
-                        .foregroundColor(.gray)
+                        .foregroundColor(isDisliked ? .blue : .gray)
                 }
+                Text("\(dislikeCount)")
+                    .font(.system(size: 10))
+                    .foregroundColor(.gray)
             }
         }
         .padding(.vertical, 8)
+        .alert("Delete Comment", isPresented: $showDeleteAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                commentsViewModel.deleteComment(comment.id)
+            }
+        } message: {
+            Text("Are you sure you want to delete this comment?")
+        }
     }
 }
 

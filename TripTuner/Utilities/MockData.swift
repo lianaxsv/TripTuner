@@ -71,6 +71,10 @@ struct MockData {
             likes: 167,
             comments: 27,
             timeEstimate: 4,
+            cost: 50.0,
+            costLevel: .medium,
+            noiseLevel: .moderate,
+            region: .rittenhouse,
             isSaved: true
         ),
         Itinerary(
@@ -88,6 +92,10 @@ struct MockData {
             likes: 89,
             comments: 12,
             timeEstimate: 2,
+            cost: 20.0,
+            costLevel: .low,
+            noiseLevel: .quiet,
+            region: .universityCity,
             isSaved: true
         ),
         Itinerary(
@@ -105,6 +113,10 @@ struct MockData {
             likes: 234,
             comments: 45,
             timeEstimate: 3,
+            cost: 60.0,
+            costLevel: .high,
+            noiseLevel: .loud,
+            region: .fishtown,
             isSaved: true
         )
     ]

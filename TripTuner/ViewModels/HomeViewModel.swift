@@ -15,6 +15,9 @@ class HomeViewModel: ObservableObject {
     @Published var itineraries: [Itinerary] = []
     private let itinerariesManager = ItinerariesManager.shared
     @Published var selectedCategory: ItineraryCategory = .all
+    @Published var selectedRegion: PhiladelphiaRegion = .all
+    @Published var selectedCostLevel: CostLevel?
+    @Published var selectedNoiseLevel: NoiseLevel?
     @Published var selectedItinerary: Itinerary?
     @Published var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
@@ -48,10 +51,29 @@ class HomeViewModel: ObservableObject {
     }
     
     var filteredItineraries: [Itinerary] {
-        if selectedCategory == .all {
-            return itineraries
+        var filtered = itineraries
+        
+        // Filter by category
+        if selectedCategory != .all {
+            filtered = filtered.filter { $0.category == selectedCategory }
         }
-        return itineraries.filter { $0.category == selectedCategory }
+        
+        // Filter by region
+        if selectedRegion != .all {
+            filtered = filtered.filter { $0.region == selectedRegion }
+        }
+        
+        // Filter by cost level
+        if let costLevel = selectedCostLevel {
+            filtered = filtered.filter { $0.costLevel == costLevel }
+        }
+        
+        // Filter by noise level
+        if let noiseLevel = selectedNoiseLevel {
+            filtered = filtered.filter { $0.noiseLevel == noiseLevel }
+        }
+        
+        return filtered
     }
     
     func selectCategory(_ category: ItineraryCategory) {
@@ -66,8 +88,18 @@ class HomeViewModel: ObservableObject {
         if isMapExpanded {
             // Reset to default state when collapsing
             selectedCategory = .all
+            selectedRegion = .all
+            selectedCostLevel = nil
+            selectedNoiseLevel = nil
         }
         isMapExpanded.toggle()
+    }
+    
+    func clearAllFilters() {
+        selectedCategory = .all
+        selectedRegion = .all
+        selectedCostLevel = nil
+        selectedNoiseLevel = nil
     }
     
     func refreshItineraries() {
