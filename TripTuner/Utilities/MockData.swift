@@ -9,7 +9,10 @@ import Foundation
 import CoreLocation
 
 struct MockData {
+    static let currentUserId = "current-user-id"
+    
     static let currentUser = User(
+        id: currentUserId,
         username: "Alex Morgan",
         email: "alex@example.com",
         profileImageURL: nil,

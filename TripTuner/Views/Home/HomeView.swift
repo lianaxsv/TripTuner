@@ -15,30 +15,34 @@ struct HomeView: View {
     
     var body: some View {
         ZStack {
-            // Map View
-            Map(coordinateRegion: $viewModel.region, annotationItems: viewModel.filteredItineraries) { itinerary in
-                MapAnnotation(coordinate: itinerary.stops.first?.coordinate ?? CLLocationCoordinate2D(latitude: 39.9526, longitude: -75.1652)) {
-                    Button(action: {
-                        viewModel.selectItinerary(itinerary)
-                        showItineraryDetail = true
-                    }) {
-                        Image(systemName: "mappin.circle.fill")
-                            .font(.system(size: 30))
-                            .foregroundColor(pinColor(for: itinerary.category))
-                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
-                    }
-                }
-            }
-            .ignoresSafeArea()
+            Color.gray.opacity(0.05).ignoresSafeArea()
             
-            VStack {
+            if viewModel.isMapExpanded {
+                // Expanded Map View
+                expandedMapView
+            } else {
+                // Normal Home View
+                normalHomeView
+            }
+        }
+        .sheet(isPresented: $showItineraryDetail) {
+            if let itinerary = viewModel.selectedItinerary {
+                ItineraryDetailView(itinerary: itinerary)
+            }
+        }
+        .sheet(isPresented: $showAddItinerary) {
+            AddItineraryView()
+        }
+    }
+    
+    // MARK: - Normal Home View
+    private var normalHomeView: some View {
+        ScrollView {
+            VStack(spacing: 0) {
                 // Top Bar
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Homepage")
-                            .font(.system(size: 14))
-                            .foregroundColor(.gray)
-                        Text("TripTuner")
+                        Text("Discover Philly")
                             .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.pennRed)
                     }
@@ -46,7 +50,9 @@ struct HomeView: View {
                     Spacer()
                     
                     HStack(spacing: 16) {
-                        Button(action: {}) {
+                        Button(action: {
+                            viewModel.toggleMapExpansion()
+                        }) {
                             Image(systemName: "map")
                                 .font(.system(size: 20))
                                 .foregroundColor(.gray)
@@ -72,27 +78,201 @@ struct HomeView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 10)
-                .background(Color.white.opacity(0.95))
+                .padding(.bottom, 16)
                 
-                // Search Bar
-                HStack {
-                    Image(systemName: "mappin")
-                        .foregroundColor(.gray)
-                    Text("Philadelphia, PA")
-                        .foregroundColor(.gray)
-                    Spacer()
+                // Top Itineraries of the Week
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Top Itineraries This Week")
+                            .font(.system(size: 20, weight: .bold))
+                        Spacer()
+                    }
+                    .padding(.horizontal, 20)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 16) {
+                            ForEach(viewModel.topItinerariesOfWeek) { itinerary in
+                                TopItineraryCard(itinerary: itinerary) {
+                                    viewModel.selectItinerary(itinerary)
+                                    showItineraryDetail = true
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(.bottom, 24)
+                
+                // Map Section (Collapsed)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Explore on Map")
+                            .font(.system(size: 20, weight: .bold))
+                        Spacer()
+                        Button(action: {
+                            viewModel.toggleMapExpansion()
+                        }) {
+                            Text("Expand")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.pennRed)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    
+                    // Small Map Preview
+                    Button(action: {
+                        viewModel.toggleMapExpansion()
+                    }) {
+                        ZStack {
+                            Map(position: $viewModel.cameraPosition) {
+                                ForEach(viewModel.filteredItineraries) { itinerary in
+                                    if let coordinate = itinerary.stops.first?.coordinate {
+                                        Annotation(itinerary.title, coordinate: coordinate) {
+                                            Image(systemName: "mappin.circle.fill")
+                                                .font(.system(size: 20))
+                                                .foregroundColor(pinColor(for: itinerary.category))
+                                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(height: 200)
+                            .allowsHitTesting(false) // Disable map interaction, use button instead
+                            
+                            // Overlay to indicate it's tappable
+                            VStack {
+                                Spacer()
+                                HStack {
+                                    Spacer()
+                                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .padding(8)
+                                        .background(Color.black.opacity(0.6))
+                                        .clipShape(Circle())
+                                }
+                                .padding(12)
+                            }
+                        }
+                    }
+                    .cornerRadius(16)
+                    .padding(.horizontal, 20)
+                }
+                .padding(.bottom, 24)
+                
+                // Category Filters (only show if category is selected)
+                if viewModel.selectedCategory != .all {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Filtering: \(viewModel.selectedCategory.rawValue)")
+                            .font(.system(size: 16, weight: .semibold))
+                            .padding(.horizontal, 20)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(ItineraryCategory.allCases.filter { $0 != .all }, id: \.self) { category in
+                                    CategoryFilterChip(
+                                        category: category,
+                                        isSelected: viewModel.selectedCategory == category,
+                                        action: {
+                                            viewModel.selectCategory(category)
+                                        }
+                                    )
+                                }
+                                
+                                // Clear filter button
+                                Button(action: {
+                                    viewModel.selectCategory(.all)
+                                }) {
+                                    Text("Clear")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.gray)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 8)
+                                        .background(Color.white)
+                                        .cornerRadius(20)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 20)
+                                                .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                        )
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                        }
+                    }
+                    .padding(.bottom, 24)
+                }
+                
+                // Bottom Footer (clean, no map)
+                VStack(spacing: 8) {
+                    Text("Discover amazing trips in Philadelphia")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                    Text("Select a category to filter itineraries on the map")
+                        .font(.system(size: 12))
+                        .foregroundColor(.gray.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
                 .background(Color.white)
-                .cornerRadius(12)
-                .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+            }
+        }
+        .refreshable {
+            viewModel.refreshItineraries()
+        }
+    }
+    
+    // MARK: - Expanded Map View
+    private var expandedMapView: some View {
+        ZStack {
+            // Full Map
+            Map(position: $viewModel.cameraPosition) {
+                ForEach(viewModel.filteredItineraries) { itinerary in
+                    if let coordinate = itinerary.stops.first?.coordinate {
+                        Annotation(itinerary.title, coordinate: coordinate) {
+                            Button(action: {
+                                viewModel.selectItinerary(itinerary)
+                                showItineraryDetail = true
+                            }) {
+                                Image(systemName: "mappin.circle.fill")
+                                    .font(.system(size: 30))
+                                    .foregroundColor(pinColor(for: itinerary.category))
+                                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 2)
+                            }
+                        }
+                    }
+                }
+            }
+            .ignoresSafeArea()
+            
+            VStack {
+                // Top Bar with Close Button
+                HStack {
+                    Button(action: {
+                        viewModel.toggleMapExpansion()
+                    }) {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundColor(.white)
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(Circle())
+                    }
+                    
+                    Spacer()
+                    
+                    Text("Explore Map")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.black.opacity(0.5))
+                        .cornerRadius(20)
+                }
                 .padding(.horizontal, 20)
-                .padding(.top, 12)
+                .padding(.top, 10)
                 
                 Spacer()
                 
-                // Category Filters
+                // Category Filters (always visible in expanded map)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
                         ForEach(ItineraryCategory.allCases.filter { $0 != .all }, id: \.self) { category in
@@ -104,32 +284,25 @@ struct HomeView: View {
                                 }
                             )
                         }
+                        
+                        // Clear filter button
+                        Button(action: {
+                            viewModel.selectCategory(.all)
+                        }) {
+                            Text("All")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(viewModel.selectedCategory == .all ? .white : .black)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(viewModel.selectedCategory == .all ? Color.pennRed : Color.white)
+                                .cornerRadius(20)
+                                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+                        }
                     }
                     .padding(.horizontal, 20)
                 }
-                .padding(.bottom, 12)
-                
-                // Itinerary Card
-                if let selectedItinerary = viewModel.selectedItinerary ?? viewModel.filteredItineraries.first {
-                    ItineraryCard(itinerary: selectedItinerary) {
-                        viewModel.selectItinerary(selectedItinerary)
-                        showItineraryDetail = true
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
-                }
+                .padding(.bottom, 20)
             }
-        }
-        .sheet(isPresented: $showItineraryDetail) {
-            if let itinerary = viewModel.selectedItinerary {
-                ItineraryDetailView(itinerary: itinerary)
-            }
-        }
-        .sheet(isPresented: $showAddItinerary) {
-            AddItineraryView()
-        }
-        .refreshable {
-            viewModel.refreshItineraries()
         }
     }
     
@@ -140,6 +313,69 @@ struct HomeView: View {
         case .attractions: return .blue
         case .all: return .gray
         }
+    }
+}
+
+// MARK: - Top Itinerary Card
+struct TopItineraryCard: View {
+    let itinerary: Itinerary
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                // Image placeholder
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.pennRed.opacity(0.6), Color.pennBlue.opacity(0.6)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 200, height: 120)
+                    
+                    VStack {
+                        Text(itinerary.category.emoji)
+                            .font(.system(size: 40))
+                    }
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(itinerary.title)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.black)
+                        .lineLimit(1)
+                    
+                    HStack(spacing: 4) {
+                        Text("\(itinerary.timeEstimate) hours")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                        Text("•")
+                            .foregroundColor(.gray)
+                        Text(costString)
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+            }
+            .frame(width: 200)
+            .background(Color.white)
+            .cornerRadius(16)
+            .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+        }
+    }
+    
+    private var costString: String {
+        if let cost = itinerary.cost {
+            if cost < 25 { return "$" }
+            else if cost < 50 { return "$$" }
+            else { return "$$$" }
+        }
+        return "Free"
     }
 }
 
@@ -165,77 +401,6 @@ struct CategoryFilterChip: View {
     }
 }
 
-struct ItineraryCard: View {
-    let itinerary: Itinerary
-    let action: () -> Void
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Drag indicator
-            RoundedRectangle(cornerRadius: 2)
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 40, height: 4)
-                .frame(maxWidth: .infinity)
-                .padding(.top, 8)
-            
-            Text(itinerary.title)
-                .font(.system(size: 20, weight: .bold))
-            
-            Text("by \(itinerary.authorName)")
-                .font(.system(size: 14))
-                .foregroundColor(.gray)
-            
-            Text(itinerary.description)
-                .font(.system(size: 14))
-                .foregroundColor(.gray)
-                .lineLimit(2)
-            
-            HStack(spacing: 16) {
-                HStack(spacing: 4) {
-                    Image(systemName: "hand.thumbsup.fill")
-                        .foregroundColor(.gray)
-                    Text("\(itinerary.likes)")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                }
-                
-                HStack(spacing: 4) {
-                    Image(systemName: "bubble.left")
-                        .foregroundColor(.gray)
-                    Text("\(itinerary.comments)")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                }
-                
-                HStack(spacing: 4) {
-                    Image(systemName: "clock")
-                        .foregroundColor(.gray)
-                    Text("\(itinerary.timeEstimate) hours")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                }
-                
-                Spacer()
-                
-                Button(action: action) {
-                    Text("View")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 8)
-                        .background(Color.blue)
-                        .cornerRadius(8)
-                }
-            }
-        }
-        .padding(16)
-        .background(Color.white)
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
-    }
-}
-
 #Preview {
     HomeView()
 }
-
