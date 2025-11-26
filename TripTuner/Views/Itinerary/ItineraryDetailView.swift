@@ -10,16 +10,21 @@ import SwiftUI
 struct ItineraryDetailView: View {
     let itinerary: Itinerary
     @Environment(\.dismiss) var dismiss
+    @StateObject private var savedManager = SavedItinerariesManager.shared
+    @StateObject private var commentsViewModel = CommentsViewModel(itineraryID: "")
     @State private var isLiked = false
-    @State private var isSaved = false
     @State private var likeCount: Int
     @State private var showComments = false
+    @State private var newCommentText = ""
     
     init(itinerary: Itinerary) {
         self.itinerary = itinerary
         _isLiked = State(initialValue: itinerary.isLiked)
-        _isSaved = State(initialValue: itinerary.isSaved)
         _likeCount = State(initialValue: itinerary.likes)
+    }
+    
+    var isSaved: Bool {
+        savedManager.isSaved(itinerary.id)
     }
     
     var body: some View {
@@ -111,7 +116,7 @@ struct ItineraryDetailView: View {
                         }
                         
                         Button(action: {
-                            isSaved.toggle()
+                            savedManager.toggleSave(itinerary.id)
                         }) {
                             Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
                                 .foregroundColor(isSaved ? .pennRed : .gray)
@@ -198,7 +203,10 @@ struct ItineraryDetailView: View {
             }
         }
         .sheet(isPresented: $showComments) {
-            CommentsView(itinerary: itinerary)
+            CommentsView(itineraryID: itinerary.id, commentsViewModel: commentsViewModel)
+        }
+        .onAppear {
+            commentsViewModel.itineraryID = itinerary.id
         }
     }
 }
@@ -253,25 +261,118 @@ struct TimelineStopView: View {
     }
 }
 
+// MARK: - Comments View
+class CommentsViewModel: ObservableObject {
+    @Published var comments: [Comment] = []
+    @Published var isLoading = false
+    var itineraryID: String
+    
+    init(itineraryID: String) {
+        self.itineraryID = itineraryID
+        loadComments()
+    }
+    
+    func loadComments() {
+        isLoading = true
+        // Mock comments
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            self.comments = [
+                Comment(
+                    authorID: "1",
+                    authorName: "John Doe",
+                    authorHandle: "@johndoe",
+                    itineraryID: self.itineraryID,
+                    content: "This looks amazing! Can't wait to try it.",
+                    likes: 12,
+                    createdAt: Date().addingTimeInterval(-7200)
+                ),
+                Comment(
+                    authorID: "2",
+                    authorName: "Jane Smith",
+                    authorHandle: "@janesmith",
+                    itineraryID: self.itineraryID,
+                    content: "I did this last weekend and it was fantastic!",
+                    likes: 8,
+                    createdAt: Date().addingTimeInterval(-3600)
+                )
+            ]
+            self.isLoading = false
+        }
+    }
+    
+    func addComment(content: String) {
+        let newComment = Comment(
+            authorID: MockData.currentUserId,
+            authorName: MockData.currentUser.username,
+            authorHandle: MockData.currentUser.handle,
+            itineraryID: itineraryID,
+            content: content,
+            likes: 0,
+            createdAt: Date()
+        )
+        comments.insert(newComment, at: 0)
+    }
+}
+
 struct CommentsView: View {
-    let itinerary: Itinerary
+    let itineraryID: String
+    @ObservedObject var commentsViewModel: CommentsViewModel
     @Environment(\.dismiss) var dismiss
+    @State private var newCommentText = ""
     
     var body: some View {
         NavigationView {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Comments")
-                        .font(.system(size: 24, weight: .bold))
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
-                    
-                    // Mock comments
-                    ForEach(0..<5) { _ in
-                        CommentRowView()
-                            .padding(.horizontal, 20)
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if commentsViewModel.comments.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "bubble.left")
+                                    .font(.system(size: 40))
+                                    .foregroundColor(.gray.opacity(0.5))
+                                Text("No comments yet")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.gray)
+                                Text("Be the first to comment!")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray.opacity(0.7))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 40)
+                        } else {
+                            ForEach(commentsViewModel.comments) { comment in
+                                CommentRowView(comment: comment)
+                                    .padding(.horizontal, 20)
+                            }
+                        }
                     }
+                    .padding(.top, 20)
                 }
+                
+                // Comment Input
+                HStack(spacing: 12) {
+                    TextField("Add a comment...", text: $newCommentText, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(1...4)
+                    
+                    Button(action: {
+                        if !newCommentText.trimmingCharacters(in: .whitespaces).isEmpty {
+                            commentsViewModel.addComment(content: newCommentText)
+                            newCommentText = ""
+                        }
+                    }) {
+                        Text("Post")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 10)
+                            .background(newCommentText.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray : Color.pennRed)
+                            .cornerRadius(8)
+                    }
+                    .disabled(newCommentText.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .padding(16)
+                .background(Color.gray.opacity(0.05))
             }
             .navigationTitle("Comments")
             .navigationBarTitleDisplayMode(.inline)
@@ -287,6 +388,16 @@ struct CommentsView: View {
 }
 
 struct CommentRowView: View {
+    let comment: Comment
+    @State private var isLiked = false
+    @State private var likeCount: Int
+    
+    init(comment: Comment) {
+        self.comment = comment
+        _isLiked = State(initialValue: comment.isLiked)
+        _likeCount = State(initialValue: comment.likes)
+    }
+    
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Circle()
@@ -294,15 +405,15 @@ struct CommentRowView: View {
                 .frame(width: 40, height: 40)
             
             VStack(alignment: .leading, spacing: 4) {
-                Text("User Name")
+                Text(comment.authorName)
                     .font(.system(size: 14, weight: .semibold))
                 
-                Text("This looks amazing! Can't wait to try it.")
+                Text(comment.content)
                     .font(.system(size: 14))
                     .foregroundColor(.gray)
                 
                 HStack(spacing: 16) {
-                    Text("2h ago")
+                    Text(comment.createdAt, style: .relative)
                         .font(.system(size: 12))
                         .foregroundColor(.gray)
                     
@@ -318,12 +429,15 @@ struct CommentRowView: View {
             Spacer()
             
             VStack(spacing: 4) {
-                Button(action: {}) {
+                Button(action: {
+                    isLiked.toggle()
+                    likeCount += isLiked ? 1 : -1
+                }) {
                     Image(systemName: "arrow.up")
                         .font(.system(size: 12))
-                        .foregroundColor(.gray)
+                        .foregroundColor(isLiked ? .pennRed : .gray)
                 }
-                Text("12")
+                Text("\(likeCount)")
                     .font(.system(size: 12))
                     .foregroundColor(.gray)
                 Button(action: {}) {
@@ -340,4 +454,3 @@ struct CommentRowView: View {
 #Preview {
     ItineraryDetailView(itinerary: MockData.sampleItinerary)
 }
-

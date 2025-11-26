@@ -70,7 +70,8 @@ struct MockData {
             photos: [],
             likes: 167,
             comments: 27,
-            timeEstimate: 4
+            timeEstimate: 4,
+            isSaved: true
         ),
         Itinerary(
             title: "Best Coffee Shops in University City",
@@ -86,7 +87,8 @@ struct MockData {
             photos: [],
             likes: 89,
             comments: 12,
-            timeEstimate: 2
+            timeEstimate: 2,
+            isSaved: true
         ),
         Itinerary(
             title: "Foodie Tour of Fishtown",
@@ -102,7 +104,8 @@ struct MockData {
             photos: [],
             likes: 234,
             comments: 45,
-            timeEstimate: 3
+            timeEstimate: 3,
+            isSaved: true
         )
     ]
     

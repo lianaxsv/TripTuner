@@ -46,6 +46,9 @@ struct ProfileView: View {
         .sheet(isPresented: $showItineraryDetail) {
             if let itinerary = selectedItinerary {
                 ItineraryDetailView(itinerary: itinerary)
+                    .onDisappear {
+                        viewModel.refreshSavedItineraries()
+                    }
             }
         }
     }

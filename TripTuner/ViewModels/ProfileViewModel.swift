@@ -20,6 +20,8 @@ class ProfileViewModel: ObservableObject {
     @Published var showAchievementDetail = false
     @Published var selectedAchievement: Achievement?
     
+    private let savedManager = SavedItinerariesManager.shared
+    
     init(user: User) {
         self.user = user
         loadUserData()
@@ -30,12 +32,15 @@ class ProfileViewModel: ObservableObject {
         // Mock data loading - user's own itineraries
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             // Only show itineraries created by this user
-            // For demo: show empty by default, or add some with matching authorID
             self.userItineraries = MockData.sampleItineraries.filter { $0.authorID == self.user.id }
-            // Mock saved itineraries (these are saved by the user, not created by them)
-            self.savedItineraries = Array(MockData.sampleItineraries.prefix(3))
+            // Get saved itineraries from manager
+            self.savedItineraries = self.savedManager.getSavedItineraries(from: MockData.sampleItineraries)
             self.isLoading = false
         }
+    }
+    
+    func refreshSavedItineraries() {
+        savedItineraries = savedManager.getSavedItineraries(from: MockData.sampleItineraries)
     }
     
     func refreshStats() {

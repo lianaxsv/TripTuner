@@ -349,11 +349,25 @@ struct TopItineraryCard: View {
                         .lineLimit(1)
                     
                     HStack(spacing: 4) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "hand.thumbsup.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(.pennRed)
+                            Text("\(itinerary.likes)")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.pennRed)
+                        }
+                        
+                        Text("•")
+                            .foregroundColor(.gray)
+                        
                         Text("\(itinerary.timeEstimate) hours")
                             .font(.system(size: 12))
                             .foregroundColor(.gray)
+                        
                         Text("•")
                             .foregroundColor(.gray)
+                        
                         Text(costString)
                             .font(.system(size: 12))
                             .foregroundColor(.gray)

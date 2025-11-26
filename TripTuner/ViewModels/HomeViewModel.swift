@@ -9,9 +9,11 @@ import Foundation
 import SwiftUI
 import MapKit
 import CoreLocation
+import Combine
 
 class HomeViewModel: ObservableObject {
-    @Published var itineraries: [Itinerary] = MockData.sampleItineraries
+    @Published var itineraries: [Itinerary] = []
+    private let itinerariesManager = ItinerariesManager.shared
     @Published var selectedCategory: ItineraryCategory = .all
     @Published var selectedItinerary: Itinerary?
     @Published var cameraPosition: MapCameraPosition = .region(
@@ -23,6 +25,22 @@ class HomeViewModel: ObservableObject {
     @Published var searchText = ""
     @Published var isLoading = false
     @Published var isMapExpanded = false
+    
+    private var cancellables = Set<AnyCancellable>()
+    
+    init() {
+        loadItineraries()
+        // Observe changes to shared manager
+        itinerariesManager.$itineraries
+            .sink { [weak self] newItineraries in
+                self?.itineraries = newItineraries
+            }
+            .store(in: &cancellables)
+    }
+    
+    func loadItineraries() {
+        itineraries = itinerariesManager.itineraries
+    }
     
     var topItinerariesOfWeek: [Itinerary] {
         // Sort by likes and take top 5
@@ -45,6 +63,10 @@ class HomeViewModel: ObservableObject {
     }
     
     func toggleMapExpansion() {
+        if isMapExpanded {
+            // Reset to default state when collapsing
+            selectedCategory = .all
+        }
         isMapExpanded.toggle()
     }
     
@@ -52,7 +74,7 @@ class HomeViewModel: ObservableObject {
         isLoading = true
         // Mock refresh
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            self.itineraries = MockData.sampleItineraries
+            self.itinerariesManager.loadItineraries()
             self.isLoading = false
         }
     }
