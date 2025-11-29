@@ -9,6 +9,8 @@ import Foundation
 import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
+import FirebaseCore
+import GoogleSignIn
 
 class AuthViewModel: ObservableObject {
     @Published var isAuthenticated = false
@@ -105,6 +107,70 @@ class AuthViewModel: ObservableObject {
                     )
                     self.currentUser = newUser
                     self.isAuthenticated = true
+                }
+            }
+        }
+    }
+    
+    func signInWithGoogle(presenting viewController: UIViewController) {
+        guard let clientID = FirebaseApp.app()?.options.clientID else { return }
+        
+        let config = GIDConfiguration(clientID: clientID)
+        GIDSignIn.sharedInstance.configuration = config
+        
+        isLoading = true
+        errorMessage = nil
+        
+        GIDSignIn.sharedInstance.signIn(withPresenting: viewController) { [weak self] result, error in
+            guard let self = self else { return }
+            
+            if let error = error {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.errorMessage = error.localizedDescription
+                }
+                return
+            }
+            
+            guard
+                let user = result?.user,
+                let idToken = user.idToken?.tokenString
+            else {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.errorMessage = "Google sign-in failed."
+                }
+                return
+            }
+            
+            let accessToken = user.accessToken.tokenString
+            let credential = GoogleAuthProvider.credential(withIDToken: idToken,
+                                                           accessToken: accessToken)
+            
+            Auth.auth().signIn(with: credential) { [weak self] authResult, error in
+                guard let self = self else { return }
+                
+                if let error = error {
+                    DispatchQueue.main.async {
+                        self.isLoading = false
+                        self.errorMessage = error.localizedDescription
+                    }
+                    return
+                }
+                
+                guard let firebaseUser = authResult?.user else {
+                    DispatchQueue.main.async {
+                        self.isLoading = false
+                        self.errorMessage = "Unable to get user from Google sign-in."
+                    }
+                    return
+                }
+                
+                Task {
+                    await self.loadUser(uid: firebaseUser.uid, fallbackEmail: firebaseUser.email)
+                    await MainActor.run {
+                        self.isLoading = false
+                    }
                 }
             }
         }

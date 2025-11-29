@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct LoginView: View {
     @EnvironmentObject var viewModel: AuthViewModel
@@ -149,7 +150,9 @@ struct LoginView: View {
                     VStack(spacing: 12) {
                         // Google Button
                         Button(action: {
-                            // Handle Google login
+                            if let root = rootViewController() {
+                                viewModel.signInWithGoogle(presenting: root)
+                            }
                         }) {
                             HStack {
                                 Image("GoogleLogo")
@@ -222,6 +225,14 @@ struct LoginView: View {
             MainTabView()
         }
     }
+}
+
+private func rootViewController() -> UIViewController? {
+    UIApplication.shared.connectedScenes
+        .compactMap { $0 as? UIWindowScene }
+        .flatMap { $0.windows }
+        .first { $0.isKeyWindow }?
+        .rootViewController
 }
 
 struct LoginTextFieldStyle: TextFieldStyle {
