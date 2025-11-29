@@ -119,6 +119,16 @@ struct LoginView: View {
                     .padding(.top, 24)
                     .disabled(viewModel.isLoading)
                     
+                    // Error message
+                    if let error = viewModel.errorMessage {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.system(size: 14))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                    }
+                    
                     // Separator
                     HStack {
                         Rectangle()

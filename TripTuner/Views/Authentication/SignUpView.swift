@@ -9,7 +9,7 @@ import SwiftUI
 
 struct SignUpView: View {
     @Environment(\.dismiss) var dismiss
-    @StateObject private var viewModel = AuthViewModel()
+    @EnvironmentObject var viewModel: AuthViewModel
     @State private var email = ""
     @State private var password = ""
     @State private var confirmPassword = ""
@@ -134,6 +134,16 @@ struct SignUpView: View {
                     .padding(.top, 24)
                     .disabled(viewModel.isLoading)
                     
+                    // Error message
+                    if let error = viewModel.errorMessage {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.system(size: 14))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                    }
+                    
                     // Sign In Link
                     HStack(spacing: 4) {
                         Text("Already have an account?")
@@ -174,5 +184,6 @@ struct SignUpView: View {
 
 #Preview {
     SignUpView()
+        .environmentObject(AuthViewModel())
 }
 
