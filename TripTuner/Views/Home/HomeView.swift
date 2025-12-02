@@ -132,8 +132,9 @@ struct HomeView: View {
                         ZStack {
                             Map(position: $viewModel.cameraPosition) {
                                 ForEach(viewModel.filteredItineraries, id: \.id) { itinerary in
-                                    if let baseCoordinate = itinerary.stops.first?.coordinate {
-                                        Annotation(itinerary.title, coordinate: baseCoordinate) {
+                                    if let firstStop = itinerary.stops.first,
+                                       firstStop.isValidCoordinate {
+                                        Annotation(itinerary.title, coordinate: firstStop.coordinate) {
                                             Image(systemName: "mappin.circle.fill")
                                                 .font(.system(size: 20))
                                                 .foregroundColor(pinColor(for: itinerary.category))
@@ -248,8 +249,9 @@ struct HomeView: View {
             // Full Map
             Map(position: $viewModel.cameraPosition) {
                 ForEach(viewModel.filteredItineraries, id: \.id) { itinerary in
-                    if let baseCoordinate = itinerary.stops.first?.coordinate {
-                        Annotation(itinerary.title, coordinate: baseCoordinate) {
+                    if let firstStop = itinerary.stops.first,
+                       firstStop.isValidCoordinate {
+                        Annotation(itinerary.title, coordinate: firstStop.coordinate) {
                             Button(action: {
                                 viewModel.selectItinerary(itinerary)
                                 showItineraryDetail = true

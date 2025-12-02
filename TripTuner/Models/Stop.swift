@@ -19,7 +19,17 @@ struct Stop: Identifiable, Codable {
     var order: Int
     
     var coordinate: CLLocationCoordinate2D {
-        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        // Validate coordinates to prevent NaN errors
+        let validLat = latitude.isNaN || latitude.isInfinite ? 39.9526 : latitude
+        let validLon = longitude.isNaN || longitude.isInfinite ? -75.1652 : longitude
+        return CLLocationCoordinate2D(latitude: validLat, longitude: validLon)
+    }
+    
+    var isValidCoordinate: Bool {
+        !latitude.isNaN && !latitude.isInfinite && 
+        !longitude.isNaN && !longitude.isInfinite &&
+        latitude >= -90 && latitude <= 90 &&
+        longitude >= -180 && longitude <= 180
     }
     
     init(id: String = UUID().uuidString,

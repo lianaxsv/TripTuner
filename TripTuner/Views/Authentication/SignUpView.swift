@@ -144,6 +144,16 @@ struct SignUpView: View {
                             .padding(.top, 8)
                     }
                     
+                    // Error message
+                    if let error = viewModel.errorMessage {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.system(size: 14))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                    }
+                    
                     // Sign In Link
                     HStack(spacing: 4) {
                         Text("Already have an account?")

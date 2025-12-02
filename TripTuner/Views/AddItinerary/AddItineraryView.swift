@@ -150,11 +150,17 @@ struct AddItineraryView: View {
                             ),
                             onGeocode: { address in
                                 GeocodingHelper.shared.geocodeAddress(address) { coordinate in
-                                    if let coordinate = coordinate {
+                                    if let coordinate = coordinate,
+                                       !coordinate.latitude.isNaN && !coordinate.longitude.isNaN,
+                                       !coordinate.latitude.isInfinite && !coordinate.longitude.isInfinite {
                                         stops[index].latitude = coordinate.latitude
                                         stops[index].longitude = coordinate.longitude
-                                        saveDraftState()
+                                    } else {
+                                        // Use default Philadelphia coordinates if geocoding fails
+                                        stops[index].latitude = 39.9526
+                                        stops[index].longitude = -75.1652
                                     }
+                                    saveDraftState()
                                 }
                             }
                         )) {
@@ -358,9 +364,15 @@ struct AddItineraryView: View {
             group.enter()
             let addressString = stop.addressComponents?.fullAddress ?? stop.address
             GeocodingHelper.shared.geocodeAddress(addressString) { coordinate in
-                if let coordinate = coordinate {
+                if let coordinate = coordinate,
+                   !coordinate.latitude.isNaN && !coordinate.longitude.isNaN,
+                   !coordinate.latitude.isInfinite && !coordinate.longitude.isInfinite {
                     stops[index].latitude = coordinate.latitude
                     stops[index].longitude = coordinate.longitude
+                } else {
+                    // Use default Philadelphia coordinates if geocoding fails
+                    stops[index].latitude = 39.9526
+                    stops[index].longitude = -75.1652
                 }
                 group.leave()
             }
