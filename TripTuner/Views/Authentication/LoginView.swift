@@ -150,9 +150,11 @@ struct LoginView: View {
                     VStack(spacing: 12) {
                         // Google Button
                         Button(action: {
-                            if let root = rootViewController() {
-                                viewModel.signInWithGoogle(presenting: root)
+                            guard let root = rootViewController() else {
+                                viewModel.errorMessage = "Unable to initialize Google Sign-In. Please try again."
+                                return
                             }
+                            viewModel.signInWithGoogle(presenting: root)
                         }) {
                             HStack {
                                 Image("GoogleLogo")
@@ -228,11 +230,19 @@ struct LoginView: View {
 }
 
 private func rootViewController() -> UIViewController? {
-    UIApplication.shared.connectedScenes
-        .compactMap { $0 as? UIWindowScene }
-        .flatMap { $0.windows }
-        .first { $0.isKeyWindow }?
-        .rootViewController
+    guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+          let window = windowScene.windows.first(where: { $0.isKeyWindow }),
+          let rootViewController = window.rootViewController else {
+        return nil
+    }
+    
+    // If rootViewController is a UINavigationController, get the top view controller
+    if let navigationController = rootViewController as? UINavigationController {
+        return navigationController.topViewController ?? navigationController
+    }
+    
+    // If rootViewController is a UIHostingController, return it
+    return rootViewController
 }
 
 struct LoginTextFieldStyle: TextFieldStyle {

@@ -113,7 +113,13 @@ class AuthViewModel: ObservableObject {
     }
     
     func signInWithGoogle(presenting viewController: UIViewController) {
-        guard let clientID = FirebaseApp.app()?.options.clientID else { return }
+        guard let clientID = FirebaseApp.app()?.options.clientID else {
+            DispatchQueue.main.async {
+                self.errorMessage = "Firebase configuration error. Please check your GoogleService-Info.plist file."
+                self.isLoading = false
+            }
+            return
+        }
         
         let config = GIDConfiguration(clientID: clientID)
         GIDSignIn.sharedInstance.configuration = config
