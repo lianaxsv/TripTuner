@@ -128,7 +128,7 @@ struct PodiumView: View {
                 .offset(x: rank == 1 ? 8 : 4, y: rank == 1 ? 8 : 4)
             }
             
-            Text(entry.user.username)
+            Text(entry.user.name)
                 .font(.system(size: 14, weight: .semibold))
             
             Text("\(entry.points) points")
@@ -158,7 +158,7 @@ struct LeaderboardRowView: View {
                 .frame(width: 40, height: 40)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.user.username)
+                Text(entry.user.name)
                     .font(.system(size: 16, weight: .semibold))
                 
                 HStack(spacing: 4) {

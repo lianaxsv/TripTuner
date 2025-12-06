@@ -9,7 +9,7 @@ import Foundation
 
 struct User: Identifiable, Codable {
     let id: String
-    var username: String
+    var name: String
     var email: String
     var profileImageURL: String?
     var year: String? // Penn graduation year
@@ -18,17 +18,17 @@ struct User: Identifiable, Codable {
     var achievements: [Achievement]
     var handle: String // @username
     
-    init(id: String = UUID().uuidString, 
-         username: String, 
-         email: String, 
-         profileImageURL: String? = nil, 
-         year: String? = nil, 
-         streak: Int = 0, 
-         points: Int = 0, 
+    init(id: String,
+         name: String,
+         email: String,
+         profileImageURL: String? = nil,
+         year: String? = nil,
+         streak: Int = 0,
+         points: Int = 0,
          achievements: [Achievement] = [],
          handle: String) {
         self.id = id
-        self.username = username
+        self.name = name
         self.email = email
         self.profileImageURL = profileImageURL
         self.year = year

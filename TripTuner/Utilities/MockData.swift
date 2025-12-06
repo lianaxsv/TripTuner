@@ -13,7 +13,7 @@ struct MockData {
     
     static let currentUser = User(
         id: currentUserId,
-        username: "Alex Morgan",
+        name: "Alex Morgan",
         email: "alex@example.com",
         profileImageURL: nil,
         year: "2025",
@@ -29,14 +29,15 @@ struct MockData {
     )
     
     static let sampleUsers = [
-        User(username: "Sarah", email: "sarah@example.com", streak: 20, points: 2840, handle: "@sarahtravels"),
-        User(username: "Emma", email: "emma@example.com", streak: 18, points: 2650, handle: "@emmawanders"),
-        User(username: "Mike", email: "mike@example.com", streak: 15, points: 2410, handle: "@mikeexplores"),
-        User(username: "Alex Kim", email: "alexkim@example.com", streak: 12, points: 2190, handle: "@alexadventures"),
-        User(username: "Jordan Lee", email: "jordan@example.com", streak: 10, points: 1980, handle: "@jordanwanders"),
-        User(username: "Taylor Martinez", email: "taylor@example.com", streak: 8, points: 1840, handle: "@taylortrips"),
-        User(username: "Casey Brown", email: "casey@example.com", streak: 7, points: 1720, handle: "@caseycafe")
+        User(id: "user_sarah", name: "Sarah", email: "sarah@example.com", streak: 20, points: 2840, handle: "@sarahtravels"),
+        User(id: "user_emma", name: "Emma", email: "emma@example.com", streak: 18, points: 2650, handle: "@emmawanders"),
+        User(id: "user_mike", name: "Mike", email: "mike@example.com", streak: 15, points: 2410, handle: "@mikeexplores"),
+        User(id: "user_alexkim", name: "Alex Kim", email: "alexkim@example.com", streak: 12, points: 2190, handle: "@alexadventures"),
+        User(id: "user_jordan", name: "Jordan Lee", email: "jordan@example.com", streak: 10, points: 1980, handle: "@jordanwanders"),
+        User(id: "user_taylor", name: "Taylor Martinez", email: "taylor@example.com", streak: 8, points: 1840, handle: "@taylortrips"),
+        User(id: "user_casey", name: "Casey Brown", email: "casey@example.com", streak: 7, points: 1720, handle: "@caseycafe")
     ]
+
     
     static let sampleStops = [
         Stop(locationName: "Rittenhouse Square", address: "Rittenhouse Square, Philadelphia, PA", latitude: 39.9496, longitude: -75.1717, notes: "Start here for a beautiful park experience", order: 1),

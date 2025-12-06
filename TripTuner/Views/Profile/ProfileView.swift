@@ -9,12 +9,19 @@ import SwiftUI
 import PhotosUI
 
 struct ProfileView: View {
-    @StateObject private var viewModel = ProfileViewModel(user: MockData.currentUser)
     @EnvironmentObject var authViewModel: AuthViewModel
-    @State private var selectedPhoto: PhotosPickerItem?
+    @StateObject private var viewModel: ProfileViewModel
     @State private var showImagePicker = false
+    
     @State private var selectedItinerary: Itinerary?
     @State private var showItineraryDetail = false
+    @State private var selectedPhoto: PhotosPickerItem?
+
+    
+    init(authViewModel: AuthViewModel? = nil) {
+        // SwiftUI will inject the real one later
+        _viewModel = StateObject(wrappedValue: ProfileViewModel(authViewModel: authViewModel ?? AuthViewModel()))
+    }
     
     var body: some View {
         ScrollView {
@@ -28,8 +35,14 @@ struct ProfileView: View {
                 signOutSection
             }
         }
-        .background(Color.gray.opacity(0.1))
-        .photosPicker(isPresented: $showImagePicker, selection: $selectedPhoto, matching: .images)
+        .onAppear {
+            viewModel.setAuthViewModel(authViewModel)
+        }
+        .photosPicker(
+            isPresented: $showImagePicker,
+            selection: $selectedPhoto,
+            matching: .images
+        )
         .onChange(of: selectedPhoto) { oldValue, newValue in
             Task {
                 if let data = try? await newValue?.loadTransferable(type: Data.self),
@@ -40,24 +53,15 @@ struct ProfileView: View {
                 }
             }
         }
-        .sheet(isPresented: $viewModel.showAchievementDetail) {
-            if let achievement = viewModel.selectedAchievement {
-                AchievementDetailView(achievement: achievement)
-            }
-        }
         .sheet(isPresented: $showItineraryDetail) {
             if let itinerary = selectedItinerary {
                 ItineraryDetailView(itinerary: itinerary)
-                    .onDisappear {
-                        viewModel.refreshStats()
-                    }
             }
         }
-        .onAppear {
-            viewModel.refreshStats()
-        }
     }
-    
+
+
+
     // MARK: - Profile Header
     private var profileHeader: some View {
         ZStack {
@@ -125,28 +129,37 @@ struct ProfileView: View {
     
     private var profileInfo: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(viewModel.user.username)
-                .font(.system(size: 24, weight: .bold))
-                .foregroundColor(.white)
-            
-            Text(viewModel.user.handle)
-                .font(.system(size: 14))
-                .foregroundColor(.white.opacity(0.9))
-            
-            HStack(spacing: 4) {
-                Image(systemName: "flame.fill")
-                    .foregroundColor(.orange)
-                Text("\(viewModel.user.streak) day streak")
-                    .font(.system(size: 12, weight: .medium))
+            if let user = viewModel.user {
+                Text(user.name)
+                    .font(.system(size: 24, weight: .bold))
                     .foregroundColor(.white)
+
+                Text(user.handle)
+                    .font(.system(size: 14))
+                    .foregroundColor(.white.opacity(0.9))
+
+                HStack(spacing: 4) {
+                    Image(systemName: "flame.fill")
+                        .foregroundColor(.orange)
+                    Text("\(user.streak) day streak")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Color.white.opacity(0.2))
+                .cornerRadius(12)
+                .padding(.top, 8)
+
+            } else {
+                // fallback placeholder
+                Text("Loading user…")
+                    .foregroundColor(.white.opacity(0.7))
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color.white.opacity(0.2))
-            .cornerRadius(12)
-            .padding(.top, 8)
         }
     }
+
+    
     
     // MARK: - November Wrapped
     private var novemberWrapped: some View {
@@ -186,7 +199,8 @@ struct ProfileView: View {
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 ForEach(MockData.achievements) { achievement in
                     AchievementBadge(achievement: achievement) {
-                        viewModel.showAchievement(achievement)
+                        viewModel.selectedAchievement = achievement
+                        viewModel.showAchievementDetail = true
                     }
                 }
             }

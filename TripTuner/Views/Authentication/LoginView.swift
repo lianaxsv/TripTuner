@@ -150,8 +150,8 @@ struct LoginView: View {
                     VStack(spacing: 12) {
                         // Google Button
                         Button(action: {
-                            if let root = rootViewController() {
-                                viewModel.signInWithGoogle(presenting: root)
+                            Task {
+                                await viewModel.signInWithGoogle()
                             }
                         }) {
                             HStack {
@@ -159,7 +159,7 @@ struct LoginView: View {
                                     .resizable()
                                     .scaledToFit()
                                     .frame(width: 20, height: 20)
-                                
+
                                 Text("Continue with Google")
                                     .font(.system(size: 16, weight: .medium))
                                     .foregroundColor(.black)
@@ -174,7 +174,7 @@ struct LoginView: View {
                             )
                             .cornerRadius(12)
                         }
-                        
+
                         // Apple Button
                         Button(action: {
                             // Handle Apple login

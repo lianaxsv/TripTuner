@@ -89,7 +89,7 @@ class LeaderboardViewModel: ObservableObject {
             if let info = userInfo[userId] {
                 let user = User(
                     id: userId,
-                    username: info.name,
+                    name: info.name,
                     email: "",
                     points: points,
                     handle: info.handle

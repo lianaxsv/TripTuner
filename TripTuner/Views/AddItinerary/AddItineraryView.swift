@@ -398,7 +398,7 @@ struct AddItineraryView: View {
                 description: self.description.trimmingCharacters(in: .whitespaces),
                 category: category,
                 authorID: MockData.currentUserId,
-                authorName: MockData.currentUser.username,
+                authorName: MockData.currentUser.name,
                 authorHandle: MockData.currentUser.handle,
                 stops: convertedStops,
                 photos: [],

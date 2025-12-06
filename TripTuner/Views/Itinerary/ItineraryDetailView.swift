@@ -329,7 +329,7 @@ class CommentsViewModel: ObservableObject {
     func addComment(content: String) {
         let newComment = Comment(
             authorID: MockData.currentUserId,
-            authorName: MockData.currentUser.username,
+            authorName: MockData.currentUser.name,
             authorHandle: MockData.currentUser.handle,
             itineraryID: itineraryID,
             content: content,
@@ -344,7 +344,7 @@ class CommentsViewModel: ObservableObject {
         if let parentIndex = comments.firstIndex(where: { $0.id == parentID }) {
             let reply = Comment(
                 authorID: MockData.currentUserId,
-                authorName: MockData.currentUser.username,
+                authorName: MockData.currentUser.name,
                 authorHandle: MockData.currentUser.handle,
                 itineraryID: itineraryID,
                 content: content,
