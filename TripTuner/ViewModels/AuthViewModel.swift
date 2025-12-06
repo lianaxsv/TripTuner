@@ -62,111 +62,137 @@ class AuthViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         
-        db.collection("users")
-            .whereField("handle", isEqualTo: handle)
-            .getDocuments { snapshot, error in
-                
-                if let error = error {
-                    self.errorMessage = error.localizedDescription
-                    self.isLoading = false
-                    return
-                }
-                
-                // If ANY user has this handle → reject
-                if let snapshot = snapshot, !snapshot.documents.isEmpty {
-                    self.errorMessage = "Handle already taken."
-                    self.isLoading = false
-                    return
-                }
-                
-                // Handle is available → continue with Firebase Auth sign-up
-                self.createFirebaseUser(email: email, password: password, name: name, handle: handle)
-            }
-    }
-    
-    private func createFirebaseUser(email: String, password: String, name: String, handle: String) {
-
         let normalizedHandle = handle.lowercased()
-        let handleRef = db.collection("handles").document(normalizedHandle)
-
-        // 1️⃣ First: Check if handle is already taken
-        handleRef.getDocument { snapshot, error in
-            if let snapshot = snapshot, snapshot.exists {
+        
+        // 1️⃣ Create Firebase Auth user FIRST (this doesn't require Firestore permissions)
+        Auth.auth().createUser(withEmail: email, password: password) { [weak self] result, error in
+            guard let self = self else { return }
+            
+            if let error = error {
                 DispatchQueue.main.async {
                     self.isLoading = false
-                    self.errorMessage = "Handle already taken."
+                    self.errorMessage = error.localizedDescription
                 }
                 return
             }
-
-            // 2️⃣ Reserve the handle (TEMP until user account is created)
-            handleRef.setData(["uid": "TEMP"]) { error in
-                if let error = error {
-                    DispatchQueue.main.async {
-                        self.isLoading = false
-                        self.errorMessage = "Could not reserve handle."
-                    }
-                    return
+            
+            guard let firebaseUser = result?.user else {
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    self.errorMessage = "Failed to create user account."
                 }
-
-                // 3️⃣ Create Firebase account
-                Auth.auth().createUser(withEmail: email, password: password) { [weak self] result, error in
-                    guard let self = self else { return }
-
+                return
+            }
+            
+            let uid = firebaseUser.uid
+            
+            // 2️⃣ Now that user is authenticated, check if handle is available
+            // Check in "users" collection
+            self.db.collection("users")
+                .whereField("handle", isEqualTo: normalizedHandle)
+                .getDocuments { snapshot, error in
+                    
                     if let error = error {
-                        // Cleanup reservation
-                        handleRef.delete()
+                        // If error, delete the auth user and show error
+                        firebaseUser.delete { _ in }
                         DispatchQueue.main.async {
                             self.isLoading = false
                             self.errorMessage = error.localizedDescription
                         }
                         return
                     }
-
-                    guard let firebaseUser = result?.user else { return }
-                    let uid = firebaseUser.uid
-
-                    // 4️⃣ Finalize reservation
-                    handleRef.setData(["uid": uid])
-
-                    // 5️⃣ Create user document
-                    let userData: [String: Any] = [
-                        "name": name,
-                        "handle": normalizedHandle,
-                        "email": email,
-                        "profileImageURL": NSNull(),
-                        "year": NSNull(),
-                        "streak": 0,
-                        "points": 0,
-                        "createdAt": FieldValue.serverTimestamp()
-                    ]
-
-                    self.db.collection("users").document(uid).setData(userData) { error in
+                    
+                    // If handle exists in users collection, reject
+                    if let snapshot = snapshot, !snapshot.documents.isEmpty {
+                        firebaseUser.delete { _ in }
                         DispatchQueue.main.async {
                             self.isLoading = false
-                            if let error = error {
+                            self.errorMessage = "Handle already taken."
+                        }
+                        return
+                    }
+                    
+                    // 3️⃣ Check in "handles" collection
+                    let handleRef = self.db.collection("handles").document(normalizedHandle)
+                    handleRef.getDocument { snapshot, error in
+                        
+                        if let error = error {
+                            firebaseUser.delete { _ in }
+                            DispatchQueue.main.async {
+                                self.isLoading = false
                                 self.errorMessage = error.localizedDescription
+                            }
+                            return
+                        }
+                        
+                        // If handle is already reserved, reject
+                        if let snapshot = snapshot, snapshot.exists {
+                            let existingUID = snapshot.data()?["uid"] as? String
+                            // If it's not this user's UID, reject
+                            if existingUID != uid && existingUID != "TEMP" {
+                                firebaseUser.delete { _ in }
+                                DispatchQueue.main.async {
+                                    self.isLoading = false
+                                    self.errorMessage = "Handle already taken."
+                                }
                                 return
                             }
-
-                            let newUser = User(
-                                id: uid,
-                                name: name,
-                                email: email,
-                                profileImageURL: nil,
-                                year: nil,
-                                streak: 0,
-                                points: 0,
-                                achievements: [],
-                                handle: normalizedHandle
-                            )
-
-                            self.currentUser = newUser
-                            self.isAuthenticated = true
+                        }
+                        
+                        // 4️⃣ Reserve the handle
+                        handleRef.setData(["uid": uid]) { error in
+                            if let error = error {
+                                firebaseUser.delete { _ in }
+                                DispatchQueue.main.async {
+                                    self.isLoading = false
+                                    self.errorMessage = "Could not reserve handle: \(error.localizedDescription)"
+                                }
+                                return
+                            }
+                            
+                            // 5️⃣ Create user document in Firestore
+                            let userData: [String: Any] = [
+                                "name": name,
+                                "handle": normalizedHandle,
+                                "email": email,
+                                "profileImageURL": NSNull(),
+                                "year": NSNull(),
+                                "streak": 0,
+                                "points": 0,
+                                "createdAt": FieldValue.serverTimestamp()
+                            ]
+                            
+                            self.db.collection("users").document(uid).setData(userData) { error in
+                                DispatchQueue.main.async {
+                                    self.isLoading = false
+                                    if let error = error {
+                                        // Cleanup: delete handle reservation and auth user
+                                        handleRef.delete { _ in }
+                                        firebaseUser.delete { _ in }
+                                        self.errorMessage = error.localizedDescription
+                                        return
+                                    }
+                                    
+                                    // Success! Create user object
+                                    let newUser = User(
+                                        id: uid,
+                                        name: name,
+                                        email: email,
+                                        profileImageURL: nil,
+                                        year: nil,
+                                        streak: 0,
+                                        points: 0,
+                                        achievements: [],
+                                        handle: normalizedHandle
+                                    )
+                                    
+                                    self.currentUser = newUser
+                                    self.isAuthenticated = true
+                                }
+                            }
                         }
                     }
                 }
-            }
         }
     }
 
