@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		38227CD02EE4F70A0051D43C /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 38227CCF2EE4F70A0051D43C /* FirebaseStorage */; };
 		38B700E62EDBF8BA00B63F84 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 38B700E52EDBF8BA00B63F84 /* FirebaseAuth */; };
 		38B700E82EDBF8BA00B63F84 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 38B700E72EDBF8BA00B63F84 /* FirebaseCore */; };
 		38B700EA2EDBF8BA00B63F84 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 38B700E92EDBF8BA00B63F84 /* FirebaseFirestore */; };
@@ -49,6 +50,7 @@
 				38B700ED2EDBF94C00B63F84 /* GoogleSignIn in Frameworks */,
 				38B700E62EDBF8BA00B63F84 /* FirebaseAuth in Frameworks */,
 				38B700EA2EDBF8BA00B63F84 /* FirebaseFirestore in Frameworks */,
+				38227CD02EE4F70A0051D43C /* FirebaseStorage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -96,6 +98,7 @@
 				38B700E92EDBF8BA00B63F84 /* FirebaseFirestore */,
 				38B700EC2EDBF94C00B63F84 /* GoogleSignIn */,
 				38B700EE2EDBF94C00B63F84 /* GoogleSignInSwift */,
+				38227CCF2EE4F70A0051D43C /* FirebaseStorage */,
 			);
 			productName = TripTuner;
 			productReference = 2E4913802ECD016B00D6942F /* TripTuner.app */;
@@ -382,6 +385,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		38227CCF2EE4F70A0051D43C /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 38B700E42EDBF8BA00B63F84 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
+		};
 		38B700E52EDBF8BA00B63F84 /* FirebaseAuth */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 38B700E42EDBF8BA00B63F84 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;

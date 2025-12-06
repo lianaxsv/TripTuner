@@ -1,0 +1,18 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Profile pictures - users can only upload/read their own
+    // The filename is {userId}.jpg, so we match the userId part
+    match /profile_pictures/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Itinerary photos - users can upload to their own folder, anyone can read
+    match /itineraries/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseAuth
 
 struct ItineraryDetailView: View {
     let itinerary: Itinerary
@@ -40,17 +41,60 @@ struct ItineraryDetailView: View {
         NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Hero Image
+                    // Hero Image/Photos
                     ZStack {
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.pennRed.opacity(0.8), Color.pennBlue.opacity(0.8)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                        if !itinerary.photos.isEmpty, 
+                           let firstPhotoURL = itinerary.photos.first,
+                           !firstPhotoURL.isEmpty,
+                           let photoURL = URL(string: firstPhotoURL) {
+                            AsyncImage(url: photoURL) { phase in
+                                switch phase {
+                                case .empty:
+                                    Rectangle()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Color.pennRed.opacity(0.8), Color.pennBlue.opacity(0.8)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                case .failure:
+                                    Rectangle()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Color.pennRed.opacity(0.8), Color.pennBlue.opacity(0.8)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                @unknown default:
+                                    Rectangle()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Color.pennRed.opacity(0.8), Color.pennBlue.opacity(0.8)],
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                }
+                            }
                             .frame(height: 250)
+                            .clipped()
+                        } else {
+                            Rectangle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.pennRed.opacity(0.8), Color.pennBlue.opacity(0.8)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(height: 250)
+                        }
                         
                         VStack {
                             Spacer()
@@ -69,6 +113,21 @@ struct ItineraryDetailView: View {
                                         .cornerRadius(8)
                                 }
                                 Spacer()
+                                
+                                // Photo count indicator
+                                if itinerary.photos.count > 1 {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "photo")
+                                            .font(.system(size: 12))
+                                        Text("\(itinerary.photos.count)")
+                                            .font(.system(size: 12, weight: .semibold))
+                                    }
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.black.opacity(0.4))
+                                    .cornerRadius(8)
+                                }
                             }
                             .padding(20)
                         }
@@ -78,9 +137,34 @@ struct ItineraryDetailView: View {
                     HStack {
                         // Author
                         HStack(spacing: 12) {
-                            Circle()
-                                .fill(Color.gray.opacity(0.3))
+                            if let profileImageURL = itinerary.authorProfileImageURL,
+                               !profileImageURL.isEmpty,
+                               let url = URL(string: profileImageURL) {
+                                AsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .empty:
+                                        Circle()
+                                            .fill(Color.gray.opacity(0.3))
+                                            .overlay(ProgressView())
+                                    case .success(let image):
+                                        image
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                    case .failure:
+                                        Circle()
+                                            .fill(Color.gray.opacity(0.3))
+                                    @unknown default:
+                                        Circle()
+                                            .fill(Color.gray.opacity(0.3))
+                                    }
+                                }
                                 .frame(width: 40, height: 40)
+                                .clipShape(Circle())
+                            } else {
+                                Circle()
+                                    .fill(Color.gray.opacity(0.3))
+                                    .frame(width: 40, height: 40)
+                            }
                             
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(itinerary.authorName)
@@ -189,6 +273,53 @@ struct ItineraryDetailView: View {
                         }
                         .padding(.horizontal, 20)
                         
+                        // Photo Gallery
+                        if !itinerary.photos.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Photos")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .padding(.horizontal, 20)
+                                
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        ForEach(itinerary.photos.filter { !$0.isEmpty }, id: \.self) { photoURLString in
+                                            if let photoURL = URL(string: photoURLString) {
+                                                AsyncImage(url: photoURL) { phase in
+                                                    switch phase {
+                                                    case .empty:
+                                                        Rectangle()
+                                                            .fill(Color.gray.opacity(0.3))
+                                                            .overlay(
+                                                                ProgressView()
+                                                            )
+                                                    case .success(let image):
+                                                        image
+                                                            .resizable()
+                                                            .aspectRatio(contentMode: .fill)
+                                                    case .failure:
+                                                        Rectangle()
+                                                            .fill(Color.gray.opacity(0.3))
+                                                            .overlay(
+                                                                Image(systemName: "photo")
+                                                                    .foregroundColor(.gray)
+                                                            )
+                                                    @unknown default:
+                                                        Rectangle()
+                                                            .fill(Color.gray.opacity(0.3))
+                                                    }
+                                                }
+                                                .frame(width: 200, height: 150)
+                                                .cornerRadius(12)
+                                                .clipped()
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal, 20)
+                                }
+                            }
+                            .padding(.top, 20)
+                        }
+                        
                         // Timeline
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Timeline")
@@ -286,84 +417,285 @@ struct TimelineStopView: View {
 }
 
 // MARK: - Comments View
+import FirebaseFirestore
+import FirebaseAuth
+
 class CommentsViewModel: ObservableObject {
     @Published var comments: [Comment] = []
     @Published var isLoading = false
     var itineraryID: String
+    
+    private let db = Firestore.firestore()
+    private var commentsListener: ListenerRegistration?
+    private var replyListeners: [String: ListenerRegistration] = [:]
     
     init(itineraryID: String) {
         self.itineraryID = itineraryID
         loadComments()
     }
     
+    deinit {
+        commentsListener?.remove()
+        replyListeners.values.forEach { $0.remove() }
+    }
+    
     func loadComments() {
         isLoading = true
-        // Mock comments
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            self.comments = [
-                Comment(
-                    authorID: "1",
-                    authorName: "John Doe",
-                    authorHandle: "@johndoe",
-                    itineraryID: self.itineraryID,
-                    content: "This looks amazing! Can't wait to try it.",
-                    likes: 12,
-                    dislikes: 2,
-                    createdAt: Date().addingTimeInterval(-7200)
-                ),
-                Comment(
-                    authorID: "2",
-                    authorName: "Jane Smith",
-                    authorHandle: "@janesmith",
-                    itineraryID: self.itineraryID,
-                    content: "I did this last weekend and it was fantastic!",
-                    likes: 8,
-                    dislikes: 1,
-                    createdAt: Date().addingTimeInterval(-3600)
-                )
-            ]
-            self.isLoading = false
+        
+        // Load top-level comments (no parent) with real-time listener
+        commentsListener = db.collection("itineraries").document(itineraryID)
+            .collection("comments")
+            .whereField("parentCommentID", isEqualTo: NSNull())
+            .order(by: "createdAt", descending: true)
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self else { return }
+                
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    
+                    if let error = error {
+                        print("Error loading comments: \(error.localizedDescription)")
+                        return
+                    }
+                    
+                    guard let documents = snapshot?.documents else {
+                        self.comments = []
+                        return
+                    }
+                    
+                    var loadedComments: [Comment] = []
+                    
+                    for document in documents {
+                        if let comment = self.commentFromFirestore(document) {
+                            loadedComments.append(comment)
+                            
+                            // Set up real-time listener for replies
+                            self.setupReplyListener(for: comment.id)
+                        }
+                    }
+                    
+                    self.comments = loadedComments
+                }
+            }
+    }
+    
+    private func setupReplyListener(for parentID: String) {
+        // Remove existing listener if any
+        replyListeners[parentID]?.remove()
+        
+        // Set up real-time listener for replies
+        let listener = db.collection("itineraries").document(itineraryID)
+            .collection("comments")
+            .whereField("parentCommentID", isEqualTo: parentID)
+            .order(by: "createdAt", descending: false)
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self else { return }
+                
+                if let error = error {
+                    print("Error loading replies: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else {
+                    return
+                }
+                
+                let replies = documents.compactMap { self.commentFromFirestore($0) }
+                
+                DispatchQueue.main.async {
+                    if let index = self.comments.firstIndex(where: { $0.id == parentID }) {
+                        self.comments[index].replies = replies
+                    }
+                }
+            }
+        
+        replyListeners[parentID] = listener
+    }
+    
+    private func loadReplies(for parentID: String, completion: @escaping ([Comment]) -> Void) {
+        db.collection("itineraries").document(itineraryID)
+            .collection("comments")
+            .whereField("parentCommentID", isEqualTo: parentID)
+            .order(by: "createdAt", descending: false)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("Error loading replies: \(error.localizedDescription)")
+                    completion([])
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else {
+                    completion([])
+                    return
+                }
+                
+                let replies = documents.compactMap { self.commentFromFirestore($0) }
+                completion(replies)
+            }
+    }
+    
+    private func commentFromFirestore(_ document: QueryDocumentSnapshot) -> Comment? {
+        let data = document.data()
+        
+        guard let authorID = data["authorID"] as? String,
+              let authorName = data["authorName"] as? String,
+              let authorHandle = data["authorHandle"] as? String,
+              let content = data["content"] as? String,
+              let createdAtTimestamp = data["createdAt"] as? Timestamp else {
+            return nil
         }
+        
+        let authorProfileImageURLString = data["authorProfileImageURL"] as? String
+        let authorProfileImageURL = (authorProfileImageURLString?.isEmpty == false) ? authorProfileImageURLString : nil
+        let likes = data["likes"] as? Int ?? 0
+        let dislikes = data["dislikes"] as? Int ?? 0
+        let parentCommentID = data["parentCommentID"] as? String
+        
+        return Comment(
+            id: document.documentID,
+            authorID: authorID,
+            authorName: authorName,
+            authorHandle: authorHandle,
+            authorProfileImageURL: authorProfileImageURL,
+            itineraryID: itineraryID,
+            content: content,
+            likes: likes,
+            dislikes: dislikes,
+            createdAt: createdAtTimestamp.dateValue(),
+            isLiked: false,
+            isDisliked: false,
+            replies: [],
+            parentCommentID: parentCommentID
+        )
     }
     
     func addComment(content: String) {
-        let newComment = Comment(
-            authorID: MockData.currentUserId,
-            authorName: MockData.currentUser.name,
-            authorHandle: MockData.currentUser.handle,
-            itineraryID: itineraryID,
-            content: content,
-            likes: 0,
-            dislikes: 0,
-            createdAt: Date()
-        )
-        comments.insert(newComment, at: 0)
+        guard let userID = Auth.auth().currentUser?.uid else {
+            return
+        }
+        
+        // Get user info from Firestore
+        db.collection("users").document(userID).getDocument { [weak self] snapshot, error in
+            guard let self = self else { return }
+            
+            let authorName = snapshot?.data()?["name"] as? String ?? "User"
+            let authorHandle = snapshot?.data()?["handle"] as? String ?? "@user"
+            let authorProfileImageURL = snapshot?.data()?["profileImageURL"] as? String
+            
+            let commentData: [String: Any] = [
+                "authorID": userID,
+                "authorName": authorName,
+                "authorHandle": authorHandle,
+                "authorProfileImageURL": authorProfileImageURL ?? NSNull(),
+                "itineraryID": self.itineraryID,
+                "content": content,
+                "likes": 0,
+                "dislikes": 0,
+                "createdAt": FieldValue.serverTimestamp(),
+                "parentCommentID": NSNull()
+            ]
+            
+            self.db.collection("itineraries").document(self.itineraryID)
+                .collection("comments")
+                .addDocument(data: commentData) { error in
+                    if let error = error {
+                        print("Error adding comment: \(error.localizedDescription)")
+                    } else {
+                        // Update comment count on itinerary
+                        self.updateCommentCount()
+                    }
+                }
+        }
     }
     
     func addReply(to parentID: String, content: String) {
-        if let parentIndex = comments.firstIndex(where: { $0.id == parentID }) {
-            let reply = Comment(
-                authorID: MockData.currentUserId,
-                authorName: MockData.currentUser.name,
-                authorHandle: MockData.currentUser.handle,
-                itineraryID: itineraryID,
-                content: content,
-                likes: 0,
-                dislikes: 0,
-                createdAt: Date(),
-                parentCommentID: parentID
-            )
-            comments[parentIndex].replies.append(reply)
+        guard let userID = Auth.auth().currentUser?.uid else {
+            return
+        }
+        
+        // Get user info from Firestore
+        db.collection("users").document(userID).getDocument { [weak self] snapshot, error in
+            guard let self = self else { return }
+            
+            let authorName = snapshot?.data()?["name"] as? String ?? "User"
+            let authorHandle = snapshot?.data()?["handle"] as? String ?? "@user"
+            let authorProfileImageURL = snapshot?.data()?["profileImageURL"] as? String
+            
+            let replyData: [String: Any] = [
+                "authorID": userID,
+                "authorName": authorName,
+                "authorHandle": authorHandle,
+                "authorProfileImageURL": authorProfileImageURL ?? NSNull(),
+                "itineraryID": self.itineraryID,
+                "content": content,
+                "likes": 0,
+                "dislikes": 0,
+                "createdAt": FieldValue.serverTimestamp(),
+                "parentCommentID": parentID
+            ]
+            
+            self.db.collection("itineraries").document(self.itineraryID)
+                .collection("comments")
+                .addDocument(data: replyData) { error in
+                    if let error = error {
+                        print("Error adding reply: \(error.localizedDescription)")
+                    } else {
+                        self.updateCommentCount()
+                    }
+                }
         }
     }
     
     func deleteComment(_ commentID: String) {
-        // Remove from main comments
-        comments.removeAll { $0.id == commentID }
-        // Remove from replies
-        for index in comments.indices {
-            comments[index].replies.removeAll { $0.id == commentID }
+        guard let userID = Auth.auth().currentUser?.uid else {
+            return
         }
+        
+        // Check if user owns the comment
+        db.collection("itineraries").document(itineraryID)
+            .collection("comments").document(commentID).getDocument { [weak self] snapshot, error in
+                guard let self = self else { return }
+                
+                if let data = snapshot?.data(),
+                   let authorID = data["authorID"] as? String,
+                   authorID == userID {
+                    // Delete the comment
+                    self.db.collection("itineraries").document(self.itineraryID)
+                        .collection("comments").document(commentID).delete { error in
+                            if let error = error {
+                                print("Error deleting comment: \(error.localizedDescription)")
+                            } else {
+                                // Also delete any replies
+                                self.db.collection("itineraries").document(self.itineraryID)
+                                    .collection("comments")
+                                    .whereField("parentCommentID", isEqualTo: commentID)
+                                    .getDocuments { snapshot, error in
+                                        if let documents = snapshot?.documents {
+                                            for document in documents {
+                                                document.reference.delete()
+                                            }
+                                        }
+                                        self.updateCommentCount()
+                                    }
+                            }
+                        }
+                }
+            }
+    }
+    
+    private func updateCommentCount() {
+        db.collection("itineraries").document(itineraryID)
+            .collection("comments")
+            .getDocuments { snapshot, error in
+                if let count = snapshot?.documents.count {
+                    self.db.collection("itineraries").document(self.itineraryID)
+                        .updateData(["comments": count]) { error in
+                            if let error = error {
+                                print("Error updating comment count: \(error.localizedDescription)")
+                            }
+                        }
+                }
+            }
     }
     
     var totalCommentCount: Int {
@@ -533,14 +865,40 @@ struct CommentRowView: View {
     }
     
     var canDelete: Bool {
-        comment.authorID == MockData.currentUserId
+        guard let currentUserID = Auth.auth().currentUser?.uid else { return false }
+        return comment.authorID == currentUserID
     }
     
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Circle()
-                .fill(Color.gray.opacity(0.3))
+            if let profileImageURL = comment.authorProfileImageURL,
+               !profileImageURL.isEmpty,
+               let url = URL(string: profileImageURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .overlay(ProgressView())
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    case .failure:
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                    @unknown default:
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                    }
+                }
                 .frame(width: 40, height: 40)
+                .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 40, height: 40)
+            }
             
             VStack(alignment: .leading, spacing: 4) {
                 Text(comment.authorName)
@@ -584,13 +942,13 @@ struct CommentRowView: View {
                 Button(action: {
                     if isDisliked {
                         isDisliked = false
-                        likeCount = max(0, likeCount + 1) // Restore the like count
+                        likeCount += 1 // Restore the like count
                     }
                     isLiked.toggle()
                     if isLiked {
                         likeCount += 1
                     } else {
-                        likeCount = max(0, likeCount - 1)
+                        likeCount -= 1 // Allow negatives
                     }
                 }) {
                     Image(systemName: "arrow.up")
@@ -603,11 +961,11 @@ struct CommentRowView: View {
                 Button(action: {
                     if isLiked {
                         isLiked = false
-                        likeCount = max(0, likeCount - 1)
+                        likeCount -= 1
                     }
                     isDisliked.toggle()
                     if isDisliked {
-                        likeCount = max(0, likeCount - 1) // Decrease upvote count by 1
+                        likeCount -= 1 // Decrease count, allow negatives
                     } else {
                         likeCount += 1 // Restore when un-downvoting
                     }

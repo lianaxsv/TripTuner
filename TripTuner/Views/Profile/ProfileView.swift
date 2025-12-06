@@ -7,6 +7,7 @@
 
 import SwiftUI
 import PhotosUI
+import FirebaseFirestore
 
 struct ProfileView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
@@ -37,6 +38,7 @@ struct ProfileView: View {
         }
         .onAppear {
             viewModel.setAuthViewModel(authViewModel)
+            viewModel.refreshStats()
         }
         .photosPicker(
             isPresented: $showImagePicker,
@@ -49,6 +51,8 @@ struct ProfileView: View {
                    let image = UIImage(data: data) {
                     await MainActor.run {
                         viewModel.profileImage = image
+                        // Upload to Firebase Storage
+                        uploadProfilePicture(image)
                     }
                 }
             }
@@ -100,10 +104,28 @@ struct ProfileView: View {
                         .scaledToFill()
                         .frame(width: 80, height: 80)
                         .clipShape(Circle())
-                        .overlay(
+                } else if let imageURL = viewModel.profileImageURL,
+                          let url = URL(string: imageURL) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
                             Circle()
-                                .stroke(Color.white, lineWidth: 3)
-                        )
+                                .fill(Color.white.opacity(0.3))
+                                .overlay(ProgressView().tint(.white))
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                        case .failure:
+                            Circle()
+                                .fill(Color.white.opacity(0.3))
+                        @unknown default:
+                            Circle()
+                                .fill(Color.white.opacity(0.3))
+                        }
+                    }
+                    .frame(width: 80, height: 80)
+                    .clipShape(Circle())
                 } else {
                     Image(systemName: "person.fill")
                         .font(.system(size: 40))
@@ -357,6 +379,44 @@ struct ProfileView: View {
             Divider()
         }
         .padding(.bottom, 20)
+    }
+    
+    // MARK: - Helper Functions
+    private func uploadProfilePicture(_ image: UIImage) {
+        guard let userID = authViewModel.currentUser?.id else {
+            return
+        }
+        
+        StorageHelper.shared.uploadProfilePicture(image, userID: userID) { result in
+            switch result {
+            case .success(let url):
+                // Update profile image URL in Firestore
+                let db = Firestore.firestore()
+                db.collection("users").document(userID).updateData([
+                    "profileImageURL": url
+                ]) { error in
+                    if let error = error {
+                        print("Error updating profile image URL: \(error.localizedDescription)")
+                    } else {
+                        // Update local user object
+                        DispatchQueue.main.async {
+                            self.viewModel.profileImageURL = url
+                            if var user = self.viewModel.user {
+                                user.profileImageURL = url
+                                self.viewModel.user = user
+                            }
+                            // Update AuthViewModel
+                            if var currentUser = self.authViewModel.currentUser {
+                                currentUser.profileImageURL = url
+                                self.authViewModel.currentUser = currentUser
+                            }
+                        }
+                    }
+                }
+            case .failure(let error):
+                print("Error uploading profile picture: \(error.localizedDescription)")
+            }
+        }
     }
 }
 

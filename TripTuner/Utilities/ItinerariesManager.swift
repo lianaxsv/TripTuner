@@ -184,7 +184,8 @@ class ItinerariesManager: ObservableObject {
             "createdAt": Timestamp(date: itinerary.createdAt)
         ]
         
-        if let profileImageURL = itinerary.authorProfileImageURL {
+        // Always include authorProfileImageURL (even if nil)
+        if let profileImageURL = itinerary.authorProfileImageURL, !profileImageURL.isEmpty {
             data["authorProfileImageURL"] = profileImageURL
         } else {
             data["authorProfileImageURL"] = NSNull()
@@ -267,13 +268,17 @@ class ItinerariesManager: ObservableObject {
         }
         
         // These have defaults, so they're not in the guard statement
-        let photos = data["photos"] as? [String] ?? []
+        let photosArray = data["photos"] as? [String] ?? []
+        // Filter out empty photo URLs
+        let photos = photosArray.filter { !$0.isEmpty }
         let likes = data["likes"] as? Int ?? 0
         let comments = data["comments"] as? Int ?? 0
         
         let stops = stopsData.compactMap { stopFromFirestoreData($0) }
         
-        let authorProfileImageURL = data["authorProfileImageURL"] as? String
+        // Get authorProfileImageURL, filtering out empty strings
+        let authorProfileImageURLString = data["authorProfileImageURL"] as? String
+        let authorProfileImageURL = (authorProfileImageURLString?.isEmpty == false) ? authorProfileImageURLString : nil
         let cost = data["cost"] as? Double
         let costLevelString = data["costLevel"] as? String
         let costLevel = costLevelString.flatMap { CostLevel(rawValue: $0) }

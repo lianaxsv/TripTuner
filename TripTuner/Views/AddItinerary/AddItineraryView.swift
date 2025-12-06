@@ -401,34 +401,117 @@ struct AddItineraryView: View {
                 return
             }
             
-            // Create new itinerary with 0 likes and 0 comments
-            let newItinerary = Itinerary(
-                title: self.title.trimmingCharacters(in: .whitespaces),
-                description: self.description.trimmingCharacters(in: .whitespaces),
-                category: category,
-                authorID: currentUser.id,
-                authorName: currentUser.name,
-                authorHandle: currentUser.handle,
-                authorProfileImageURL: currentUser.profileImageURL,
-                stops: convertedStops,
-                photos: [],
-                likes: 0,
-                comments: 0,
-                timeEstimate: Int(self.timeEstimate),
-                cost: costLevel.numericValue,
-                costLevel: costLevel,
-                noiseLevel: self.currentNoiseLevel,
-                region: region
-            )
+            // Generate itinerary ID first (needed for photo upload path)
+            let itineraryID = UUID().uuidString
             
-            // Add to shared manager
-            self.itinerariesManager.addItinerary(newItinerary)
-            self.isLoading = false
+            // Upload photos if any are selected
+            if !self.selectedPhotos.isEmpty {
+                self.uploadPhotos(itineraryID: itineraryID, userID: currentUser.id) { photoURLs in
+                    // Create new itinerary with uploaded photo URLs
+                    let newItinerary = Itinerary(
+                        id: itineraryID,
+                        title: self.title.trimmingCharacters(in: .whitespaces),
+                        description: self.description.trimmingCharacters(in: .whitespaces),
+                        category: category,
+                        authorID: currentUser.id,
+                        authorName: currentUser.name,
+                        authorHandle: currentUser.handle,
+                        authorProfileImageURL: currentUser.profileImageURL,
+                        stops: convertedStops,
+                        photos: photoURLs,
+                        likes: 0,
+                        comments: 0,
+                        timeEstimate: Int(self.timeEstimate),
+                        cost: costLevel.numericValue,
+                        costLevel: costLevel,
+                        noiseLevel: self.currentNoiseLevel,
+                        region: region
+                    )
+                    
+                    // Add to shared manager
+                    self.itinerariesManager.addItinerary(newItinerary)
+                    self.isLoading = false
+                    
+                    // Clear draft state after successful submission
+                    self.clearDraftState()
+                    
+                    self.dismiss()
+                }
+            } else {
+                // No photos to upload, create itinerary directly
+                let newItinerary = Itinerary(
+                    id: itineraryID,
+                    title: self.title.trimmingCharacters(in: .whitespaces),
+                    description: self.description.trimmingCharacters(in: .whitespaces),
+                    category: category,
+                    authorID: currentUser.id,
+                    authorName: currentUser.name,
+                    authorHandle: currentUser.handle,
+                    authorProfileImageURL: currentUser.profileImageURL,
+                    stops: convertedStops,
+                    photos: [],
+                    likes: 0,
+                    comments: 0,
+                    timeEstimate: Int(self.timeEstimate),
+                    cost: costLevel.numericValue,
+                    costLevel: costLevel,
+                    noiseLevel: self.currentNoiseLevel,
+                    region: region
+                )
+                
+                // Add to shared manager
+                self.itinerariesManager.addItinerary(newItinerary)
+                self.isLoading = false
+                
+                // Clear draft state after successful submission
+                self.clearDraftState()
+                
+                self.dismiss()
+            }
+        }
+    }
+    
+    private func uploadPhotos(itineraryID: String, userID: String, completion: @escaping ([String]) -> Void) {
+        guard !selectedPhotos.isEmpty else {
+            completion([])
+            return
+        }
+        
+        let uploadGroup = DispatchGroup()
+        var uploadedImages: [UIImage] = []
+        
+        // Convert PhotosPickerItems to UIImage
+        for photoItem in selectedPhotos {
+            uploadGroup.enter()
+            Task {
+                if let data = try? await photoItem.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    await MainActor.run {
+                        uploadedImages.append(image)
+                    }
+                }
+                uploadGroup.leave()
+            }
+        }
+        
+        uploadGroup.notify(queue: .main) {
+            guard !uploadedImages.isEmpty else {
+                completion([])
+                return
+            }
             
-            // Clear draft state after successful submission
-            self.clearDraftState()
+            // Upload images to Firebase Storage
+            let basePath = "itineraries/\(userID)/\(itineraryID)"
             
-            self.dismiss()
+            StorageHelper.shared.uploadImages(uploadedImages, basePath: basePath) { result in
+                switch result {
+                case .success(let urls):
+                    completion(urls)
+                case .failure(let error):
+                    print("Error uploading photos: \(error.localizedDescription)")
+                    completion([]) // Continue with empty photos array if upload fails
+                }
+            }
         }
     }
     

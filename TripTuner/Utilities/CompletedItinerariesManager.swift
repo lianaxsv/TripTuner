@@ -7,18 +7,50 @@
 
 import Foundation
 import SwiftUI
+import FirebaseFirestore
+import FirebaseAuth
 
 class CompletedItinerariesManager: ObservableObject {
     static let shared = CompletedItinerariesManager()
     
     @Published var completedItineraryIDs: Set<String> = []
     
+    private let db = Firestore.firestore()
+    private var listener: ListenerRegistration?
+    
     private init() {
-        // Load completed IDs from UserDefaults
-        if let data = UserDefaults.standard.data(forKey: "completedItineraryIDs"),
-           let ids = try? JSONDecoder().decode(Set<String>.self, from: data) {
-            completedItineraryIDs = ids
+        loadCompletedItineraries()
+    }
+    
+    deinit {
+        listener?.remove()
+    }
+    
+    func loadCompletedItineraries() {
+        guard let userID = Auth.auth().currentUser?.uid else {
+            completedItineraryIDs = []
+            return
         }
+        
+        listener = db.collection("users").document(userID)
+            .collection("completedItineraries")
+            .addSnapshotListener { [weak self] snapshot, error in
+                guard let self = self else { return }
+                
+                DispatchQueue.main.async {
+                    if let error = error {
+                        print("Error loading completed itineraries: \(error.localizedDescription)")
+                        return
+                    }
+                    
+                    guard let documents = snapshot?.documents else {
+                        self.completedItineraryIDs = []
+                        return
+                    }
+                    
+                    self.completedItineraryIDs = Set(documents.map { $0.documentID })
+                }
+            }
     }
     
     func isCompleted(_ itineraryID: String) -> Bool {
@@ -26,13 +58,36 @@ class CompletedItinerariesManager: ObservableObject {
     }
     
     func markCompleted(_ itineraryID: String) {
-        completedItineraryIDs.insert(itineraryID)
-        saveToUserDefaults()
+        guard let userID = Auth.auth().currentUser?.uid else {
+            return
+        }
+        
+        let completedRef = db.collection("users").document(userID)
+            .collection("completedItineraries").document(itineraryID)
+        
+        completedRef.setData([
+            "itineraryID": itineraryID,
+            "completedAt": FieldValue.serverTimestamp()
+        ]) { error in
+            if let error = error {
+                print("Error marking as completed: \(error.localizedDescription)")
+            } else {
+                DispatchQueue.main.async {
+                    self.completedItineraryIDs.insert(itineraryID)
+                }
+            }
+        }
     }
     
-    private func saveToUserDefaults() {
-        if let data = try? JSONEncoder().encode(completedItineraryIDs) {
-            UserDefaults.standard.set(data, forKey: "completedItineraryIDs")
+    func reloadCompletedItineraries() {
+        loadCompletedItineraries()
+    }
+    
+    func clearCompletedItineraries() {
+        listener?.remove()
+        listener = nil
+        DispatchQueue.main.async {
+            self.completedItineraryIDs = []
         }
     }
     
@@ -40,4 +95,3 @@ class CompletedItinerariesManager: ObservableObject {
         allItineraries.filter { completedItineraryIDs.contains($0.id) }
     }
 }
-

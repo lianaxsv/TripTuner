@@ -50,9 +50,12 @@ class AuthViewModel: ObservableObject {
                 guard let user = result?.user else { return }
                 Task { 
                     await self.loadUser(uid: user.uid, fallbackEmail: email)
-                    // Reload itineraries after successful login
+                    // Reload all data after successful login
                     await MainActor.run {
                         ItinerariesManager.shared.reloadItineraries()
+                        LikedItinerariesManager.shared.reloadLikes()
+                        SavedItinerariesManager.shared.reloadSavedItineraries()
+                        CompletedItinerariesManager.shared.reloadCompletedItineraries()
                     }
                 }
             }
@@ -194,8 +197,11 @@ class AuthViewModel: ObservableObject {
                                     
                                     self.currentUser = newUser
                                     self.isAuthenticated = true
-                                    // Reload itineraries after successful signup
+                                    // Reload all data after successful signup
                                     ItinerariesManager.shared.reloadItineraries()
+                                    LikedItinerariesManager.shared.reloadLikes()
+                                    SavedItinerariesManager.shared.reloadSavedItineraries()
+                                    CompletedItinerariesManager.shared.reloadCompletedItineraries()
                                 }
                             }
                         }
@@ -241,8 +247,11 @@ class AuthViewModel: ObservableObject {
             await loadUser(uid: firebaseUser.uid, fallbackEmail: firebaseUser.email)
             await MainActor.run { 
                 self.isLoading = false
-                // Reload itineraries after Google sign-in
+                // Reload all data after Google sign-in
                 ItinerariesManager.shared.reloadItineraries()
+                LikedItinerariesManager.shared.reloadLikes()
+                SavedItinerariesManager.shared.reloadSavedItineraries()
+                CompletedItinerariesManager.shared.reloadCompletedItineraries()
             }
             
         } catch {
@@ -258,8 +267,11 @@ class AuthViewModel: ObservableObject {
         try? Auth.auth().signOut()
         currentUser = nil
         isAuthenticated = false
-        // Clear itineraries when user logs out
+        // Clear all user-specific data when user logs out
         ItinerariesManager.shared.clearItineraries()
+        LikedItinerariesManager.shared.clearLikes()
+        SavedItinerariesManager.shared.clearSavedItineraries()
+        CompletedItinerariesManager.shared.clearCompletedItineraries()
     }
     
     // MARK: - Private helpers
@@ -290,8 +302,11 @@ class AuthViewModel: ObservableObject {
                 )
                 self.currentUser = user
                 self.isAuthenticated = true
-                // Reload itineraries after loading user
+                // Reload all data after loading user
                 ItinerariesManager.shared.reloadItineraries()
+                LikedItinerariesManager.shared.reloadLikes()
+                SavedItinerariesManager.shared.reloadSavedItineraries()
+                CompletedItinerariesManager.shared.reloadCompletedItineraries()
             } else {
                 // If there's no user document yet, create a minimal one
                 let email = fallbackEmail ?? Auth.auth().currentUser?.email ?? ""
@@ -321,8 +336,11 @@ class AuthViewModel: ObservableObject {
                 
                 self.currentUser = user
                 self.isAuthenticated = true
-                // Reload itineraries after creating user document
+                // Reload all data after creating user document
                 ItinerariesManager.shared.reloadItineraries()
+                LikedItinerariesManager.shared.reloadLikes()
+                SavedItinerariesManager.shared.reloadSavedItineraries()
+                CompletedItinerariesManager.shared.reloadCompletedItineraries()
             }
         } catch {
             self.errorMessage = error.localizedDescription
