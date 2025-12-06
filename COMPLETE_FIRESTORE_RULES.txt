@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // USERS COLLECTION
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // HANDLES COLLECTION - atomic reservation system
+    match /handles/{handle} {
+      // Anybody signed in can CHECK if a handle exists (read)
+      allow read: if request.auth != null;
+      
+      // Create allowed only if this handle doc does NOT exist
+      allow create: if request.auth != null 
+        && !exists(/databases/$(database)/documents/handles/$(handle));
+      
+      // Update only allowed if the handle belongs to THIS user
+      allow update: if request.auth != null 
+        && request.resource.data.uid == request.auth.uid;
+      
+      // Delete only allowed by the owner (used when cleanup happens)
+      allow delete: if request.auth != null 
+        && resource.data.uid == request.auth.uid;
+    }
+
+    // ITINERARIES COLLECTION - NEW RULES FOR ITINERARY FUNCTIONALITY
+    match /itineraries/{itineraryId} {
+      // Anyone authenticated can read all itineraries (for map display)
+      allow read: if request.auth != null;
+      
+      // Anyone authenticated can create itineraries
+      // BUT they can only set authorID to their own UID
+      allow create: if request.auth != null 
+        && request.resource.data.authorID == request.auth.uid;
+      
+      // Only the author can update their own itinerary
+      allow update: if request.auth != null 
+        && resource.data.authorID == request.auth.uid
+        && request.resource.data.authorID == request.auth.uid;
+      
+      // Only the author can delete their own itinerary
+      allow delete: if request.auth != null 
+        && resource.data.authorID == request.auth.uid;
+    }
+  }
+}
+

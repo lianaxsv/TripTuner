@@ -27,6 +27,7 @@ struct MainTabView: View {
                 .tag(1)
             
             AddPostTabView(showAddItinerary: $showAddItinerary)
+                .environmentObject(authViewModel)
                 .tabItem {
                     Label("Add Post", systemImage: "plus.circle.fill")
                 }
@@ -42,18 +43,23 @@ struct MainTabView: View {
         .accentColor(.pennRed)
         .sheet(isPresented: $showAddItinerary) {
             AddItineraryView()
+                .environmentObject(authViewModel)
         }
     }
 }
 
 struct AddPostTabView: View {
     @Binding var showAddItinerary: Bool
+    @EnvironmentObject var authViewModel: AuthViewModel
     @StateObject private var itinerariesManager = ItinerariesManager.shared
     @State private var selectedItinerary: Itinerary?
     @State private var showItineraryDetail = false
     
     var myCreatedItineraries: [Itinerary] {
-        itinerariesManager.itineraries.filter { $0.authorID == MockData.currentUserId }
+        guard let currentUserID = authViewModel.currentUser?.id else {
+            return []
+        }
+        return itinerariesManager.itineraries.filter { $0.authorID == currentUserID }
     }
     
     var body: some View {

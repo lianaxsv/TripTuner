@@ -48,7 +48,13 @@ class AuthViewModel: ObservableObject {
                     return
                 }
                 guard let user = result?.user else { return }
-                Task { await self.loadUser(uid: user.uid, fallbackEmail: email) }
+                Task { 
+                    await self.loadUser(uid: user.uid, fallbackEmail: email)
+                    // Reload itineraries after successful login
+                    await MainActor.run {
+                        ItinerariesManager.shared.reloadItineraries()
+                    }
+                }
             }
         }
     }
@@ -188,6 +194,8 @@ class AuthViewModel: ObservableObject {
                                     
                                     self.currentUser = newUser
                                     self.isAuthenticated = true
+                                    // Reload itineraries after successful signup
+                                    ItinerariesManager.shared.reloadItineraries()
                                 }
                             }
                         }
@@ -231,7 +239,11 @@ class AuthViewModel: ObservableObject {
             let firebaseUser = authResult.user
             
             await loadUser(uid: firebaseUser.uid, fallbackEmail: firebaseUser.email)
-            await MainActor.run { self.isLoading = false }
+            await MainActor.run { 
+                self.isLoading = false
+                // Reload itineraries after Google sign-in
+                ItinerariesManager.shared.reloadItineraries()
+            }
             
         } catch {
             await MainActor.run {
@@ -246,6 +258,8 @@ class AuthViewModel: ObservableObject {
         try? Auth.auth().signOut()
         currentUser = nil
         isAuthenticated = false
+        // Clear itineraries when user logs out
+        ItinerariesManager.shared.clearItineraries()
     }
     
     // MARK: - Private helpers
@@ -276,6 +290,8 @@ class AuthViewModel: ObservableObject {
                 )
                 self.currentUser = user
                 self.isAuthenticated = true
+                // Reload itineraries after loading user
+                ItinerariesManager.shared.reloadItineraries()
             } else {
                 // If there's no user document yet, create a minimal one
                 let email = fallbackEmail ?? Auth.auth().currentUser?.email ?? ""
@@ -305,6 +321,8 @@ class AuthViewModel: ObservableObject {
                 
                 self.currentUser = user
                 self.isAuthenticated = true
+                // Reload itineraries after creating user document
+                ItinerariesManager.shared.reloadItineraries()
             }
         } catch {
             self.errorMessage = error.localizedDescription

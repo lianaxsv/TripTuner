@@ -42,9 +42,17 @@ struct TripTunerApp: App {
             if authViewModel.isAuthenticated {
                 MainTabView()
                     .environmentObject(authViewModel)
+                    .onAppear {
+                        // Reload itineraries when user logs in
+                        ItinerariesManager.shared.reloadItineraries()
+                    }
             } else {
                 LoginView()
                     .environmentObject(authViewModel)
+                    .onAppear {
+                        // Clear itineraries and listener when user logs out
+                        ItinerariesManager.shared.clearItineraries()
+                    }
             }
         }
     }

@@ -12,6 +12,7 @@ import MapKit
 
 struct AddItineraryView: View {
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject var authViewModel: AuthViewModel
     private let itinerariesManager = ItinerariesManager.shared
     
     // Form state with UserDefaults persistence
@@ -392,14 +393,23 @@ struct AddItineraryView: View {
                 )
             }
             
+            // Get current user info
+            guard let currentUser = self.authViewModel.currentUser else {
+                self.isLoading = false
+                self.errorMessage = "You must be logged in to create an itinerary."
+                self.showError = true
+                return
+            }
+            
             // Create new itinerary with 0 likes and 0 comments
             let newItinerary = Itinerary(
                 title: self.title.trimmingCharacters(in: .whitespaces),
                 description: self.description.trimmingCharacters(in: .whitespaces),
                 category: category,
-                authorID: MockData.currentUserId,
-                authorName: MockData.currentUser.name,
-                authorHandle: MockData.currentUser.handle,
+                authorID: currentUser.id,
+                authorName: currentUser.name,
+                authorHandle: currentUser.handle,
+                authorProfileImageURL: currentUser.profileImageURL,
                 stops: convertedStops,
                 photos: [],
                 likes: 0,
