@@ -9,6 +9,8 @@ import SwiftUI
 import PhotosUI
 import CoreLocation
 import MapKit
+import FirebaseFirestore
+import FirebaseStorage
 
 struct AddItineraryView: View {
     @Environment(\.dismiss) var dismiss
@@ -434,14 +436,12 @@ struct AddItineraryView: View {
                         region: region
                     )
                     
-                    // Add to shared manager
+                    
                     self.itinerariesManager.addItinerary(newItinerary)
                     self.isLoading = false
-                    
-                    // Clear draft state after successful submission
                     self.clearDraftState()
-                    
                     self.dismiss()
+                    
                 }
             } else {
                 // No photos to upload, create itinerary directly
@@ -464,20 +464,15 @@ struct AddItineraryView: View {
                     noiseLevel: self.currentNoiseLevel,
                     region: region
                 )
-                
-                // Add to shared manager
                 self.itinerariesManager.addItinerary(newItinerary)
                 self.isLoading = false
-                
-                // Clear draft state after successful submission
                 self.clearDraftState()
-                
                 self.dismiss()
             }
         }
     }
     
-    private func uploadPhotos(itineraryID: String, userID: String, completion: @escaping ([String]) -> Void) {
+    public func uploadPhotos(itineraryID: String, userID: String, completion: @escaping ([String]) -> Void) {
         guard !selectedPhotos.isEmpty else {
             completion([])
             return

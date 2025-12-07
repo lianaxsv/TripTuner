@@ -16,7 +16,7 @@ class NetworkManager {
     private init() {}
     
     // MARK: - Auth Endpoints
-    func register(email: String, password: String, username: String) async throws -> User {
+    func register(email: String, password: String, name: String) async throws -> User {
         // TODO: Implement registration
         throw NetworkError.notImplemented
     }

@@ -239,7 +239,7 @@ struct ProfileView: View {
                 .padding(.top, 20)
             
             FlowLayout(spacing: 8) {
-                ForEach(MockData.neighborhoods, id: \.self) { neighborhood in
+                ForEach(viewModel.neighborhoods, id: \.self) { neighborhood in
                     HStack(spacing: 4) {
                         Text(neighborhood)
                             .font(.system(size: 14, weight: .medium))

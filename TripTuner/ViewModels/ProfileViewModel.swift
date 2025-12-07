@@ -15,14 +15,16 @@ class ProfileViewModel: ObservableObject {
     @Published var user: User?
     @Published var completedItineraries: [Itinerary] = []
     @Published var savedItineraries: [Itinerary] = []
-    @Published var milesTraveled: Double = 47.3
-    @Published var neighborhoodsExplored: Int = 12
+    @Published var milesTraveled: Double = 0
+    @Published var neighborhoodsExplored: Int = 0
     @Published var tripsCompleted: Int = 0
     @Published var isLoading = false
     @Published var profileImage: UIImage?
     @Published var profileImageURL: String?
     @Published var showAchievementDetail = false
     @Published var selectedAchievement: Achievement?
+    @Published var neighborhoods: [String] = []
+
 
     private let savedManager = SavedItinerariesManager.shared
     private let completedManager = CompletedItinerariesManager.shared
@@ -43,8 +45,20 @@ class ProfileViewModel: ObservableObject {
             self.completedItineraries = self.completedManager.getCompletedItineraries(from: self.itinerariesManager.itineraries)
             self.savedItineraries = self.savedManager.getSavedItineraries(from: self.itinerariesManager.itineraries)
             self.tripsCompleted = self.completedItineraries.count
+            self.updateNeighborhoodStats()
             self.isLoading = false
         }
+    }
+    
+    private func updateNeighborhoodStats() {
+        let regions = completedItineraries
+            .compactMap { $0.region?.rawValue }  // if region is optional; if not, just use `$0.region`
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.isEmpty }
+
+        let unique = Array(Set(regions)).sorted()
+        neighborhoods = unique
+        neighborhoodsExplored = unique.count
     }
     
     func loadProfileImage() {
