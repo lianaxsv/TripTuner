@@ -73,15 +73,38 @@ class ItinerariesManager: ObservableObject {
                     }
                     
                     var loadedItineraries: [Itinerary] = []
+                    var authorIDs = Set<String>()
                     
+                    // First pass: load itineraries and collect author IDs
                     for document in documents {
                         if let itinerary = self.itineraryFromFirestore(document: document) {
                             loadedItineraries.append(itinerary)
+                            authorIDs.insert(itinerary.authorID)
                         }
                     }
                     
-                    self.itineraries = loadedItineraries
-                    self.syncWithLikedManager()
+                    // Fetch profile pictures for all authors
+                    if !authorIDs.isEmpty {
+                        self.loadAuthorProfilePictures(authorIDs: Array(authorIDs)) { profilePictures in
+                            // Update itineraries with profile pictures
+                            for index in loadedItineraries.indices {
+                                let authorID = loadedItineraries[index].authorID
+                                if let profileImageURL = profilePictures[authorID] {
+                                    loadedItineraries[index].authorProfileImageURL = profileImageURL
+                                }
+                            }
+                            
+                            DispatchQueue.main.async {
+                                self.itineraries = loadedItineraries
+                                self.syncWithLikedManager()
+                            }
+                        }
+                    } else {
+                        DispatchQueue.main.async {
+                            self.itineraries = loadedItineraries
+                            self.syncWithLikedManager()
+                        }
+                    }
                 }
             }
     }
@@ -153,15 +176,31 @@ class ItinerariesManager: ObservableObject {
         if let index = itineraries.firstIndex(where: { $0.id == itineraryID }) {
             itineraries[index].likes = newCount
             itineraries[index].isLiked = LikedItinerariesManager.shared.isLiked(itineraryID)
-            
-            // Update in Firestore
-            db.collection("itineraries").document(itineraryID).updateData([
-                "likes": newCount
-            ]) { error in
-                if let error = error {
-                    print("Error updating like count: \(error.localizedDescription)")
+            // Note: We don't update Firestore here - the likes subcollection is the source of truth
+            // The main document's "likes" field is updated via Cloud Functions or server-side logic
+        }
+    }
+    
+    private func loadAuthorProfilePictures(authorIDs: [String], completion: @escaping ([String: String]) -> Void) {
+        let db = Firestore.firestore()
+        var profilePictures: [String: String] = [:]
+        let group = DispatchGroup()
+        
+        for authorID in authorIDs {
+            group.enter()
+            db.collection("users").document(authorID).getDocument { snapshot, error in
+                defer { group.leave() }
+                
+                if let data = snapshot?.data(),
+                   let profileImageURL = data["profileImageURL"] as? String,
+                   !profileImageURL.isEmpty {
+                    profilePictures[authorID] = profileImageURL
                 }
             }
+        }
+        
+        group.notify(queue: .main) {
+            completion(profilePictures)
         }
     }
     

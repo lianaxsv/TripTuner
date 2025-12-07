@@ -53,7 +53,6 @@ struct AddPostTabView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @StateObject private var itinerariesManager = ItinerariesManager.shared
     @State private var selectedItinerary: Itinerary?
-    @State private var showItineraryDetail = false
     
     var myCreatedItineraries: [Itinerary] {
         guard let currentUserID = authViewModel.currentUser?.id else {
@@ -117,7 +116,6 @@ struct AddPostTabView: View {
                                 ForEach(myCreatedItineraries) { itinerary in
                                     Button(action: {
                                         selectedItinerary = itinerary
-                                        showItineraryDetail = true
                                     }) {
                                         VStack(alignment: .leading, spacing: 0) {
                                             ZStack {
@@ -131,22 +129,48 @@ struct AddPostTabView: View {
                                                     )
                                                     .frame(height: 120)
                                                 
-                                                Text(itinerary.category.emoji)
-                                                    .font(.system(size: 40))
+                                                // Show photo if available, otherwise show emoji
+                                                if let firstPhotoURL = itinerary.photos.first, !firstPhotoURL.isEmpty,
+                                                   let url = URL(string: firstPhotoURL) {
+                                                    AsyncImage(url: url) { phase in
+                                                        switch phase {
+                                                        case .empty:
+                                                            Text(itinerary.category.emoji)
+                                                                .font(.system(size: 40))
+                                                        case .success(let image):
+                                                            image
+                                                                .resizable()
+                                                                .scaledToFill()
+                                                                .frame(height: 120)
+                                                                .clipped()
+                                                                .cornerRadius(12)
+                                                        case .failure:
+                                                            Text(itinerary.category.emoji)
+                                                                .font(.system(size: 40))
+                                                        @unknown default:
+                                                            Text(itinerary.category.emoji)
+                                                                .font(.system(size: 40))
+                                                        }
+                                                    }
+                                                } else {
+                                                    Text(itinerary.category.emoji)
+                                                        .font(.system(size: 40))
+                                                }
                                             }
                                             
                                             VStack(alignment: .leading, spacing: 8) {
                                                 Text(itinerary.title)
                                                     .font(.system(size: 16, weight: .bold))
                                                     .foregroundColor(.black)
-                                                    .lineLimit(2)
+                                                    .lineLimit(1)
+                                                    .truncationMode(.tail)
                                                     .padding(.top, 12)
                                                 
                                                 HStack(spacing: 4) {
                                                     Image(systemName: "hand.thumbsup.fill")
                                                         .font(.system(size: 12))
                                                         .foregroundColor(.pennRed)
-                                                    Text("\(itinerary.likes)")
+                                                    Text("\(LikedItinerariesManager.shared.getLikeCount(for: itinerary.id, defaultCount: itinerary.likes))")
                                                         .font(.system(size: 12, weight: .medium))
                                                         .foregroundColor(.gray)
                                                 }

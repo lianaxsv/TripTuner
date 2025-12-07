@@ -15,7 +15,6 @@ struct ProfileView: View {
     @State private var showImagePicker = false
     
     @State private var selectedItinerary: Itinerary?
-    @State private var showItineraryDetail = false
     @State private var selectedPhoto: PhotosPickerItem?
 
     
@@ -57,10 +56,11 @@ struct ProfileView: View {
                 }
             }
         }
-        .sheet(isPresented: $showItineraryDetail) {
-            if let itinerary = selectedItinerary {
-                ItineraryDetailView(itinerary: itinerary)
-            }
+        .sheet(item: $selectedItinerary) { itinerary in
+            ItineraryDetailView(itinerary: itinerary)
+        }
+        .sheet(item: $viewModel.selectedAchievement) { achievement in
+            AchievementDetailView(achievement: achievement)
         }
     }
 
@@ -222,7 +222,6 @@ struct ProfileView: View {
                 ForEach(MockData.achievements) { achievement in
                     AchievementBadge(achievement: achievement) {
                         viewModel.selectedAchievement = achievement
-                        viewModel.showAchievementDetail = true
                     }
                 }
             }
@@ -298,7 +297,6 @@ struct ProfileView: View {
             ForEach(viewModel.completedItineraries) { itinerary in
                 Button(action: {
                     selectedItinerary = itinerary
-                    showItineraryDetail = true
                 }) {
                     ItineraryGridItem(itinerary: itinerary, gradientColors: [Color.green.opacity(0.6), Color.pennBlue.opacity(0.6)])
                 }
@@ -346,7 +344,6 @@ struct ProfileView: View {
             ForEach(viewModel.savedItineraries) { itinerary in
                 Button(action: {
                     selectedItinerary = itinerary
-                    showItineraryDetail = true
                 }) {
                     ItineraryGridItem(itinerary: itinerary, gradientColors: [Color.pennBlue.opacity(0.6), Color.pennRed.opacity(0.6)])
                 }
@@ -411,10 +408,82 @@ struct ProfileView: View {
                                 self.authViewModel.currentUser = currentUser
                             }
                         }
+                        
+                        // Update all itineraries created by this user
+                        self.updateItinerariesWithNewProfileImage(userID: userID, imageURL: url)
+                        
+                        // Update all comments by this user
+                        self.updateCommentsWithNewProfileImage(userID: userID, imageURL: url)
                     }
                 }
             case .failure(let error):
                 print("Error uploading profile picture: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func updateItinerariesWithNewProfileImage(userID: String, imageURL: String) {
+        let db = Firestore.firestore()
+        db.collection("itineraries")
+            .whereField("authorID", isEqualTo: userID)
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("Error updating itineraries with new profile image: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else { return }
+                
+                let batch = db.batch()
+                for document in documents {
+                    batch.updateData(["authorProfileImageURL": imageURL], forDocument: document.reference)
+                }
+                
+                batch.commit { error in
+                    if let error = error {
+                        print("Error batch updating itineraries: \(error.localizedDescription)")
+                    } else {
+                        // Reload itineraries to reflect changes
+                        ItinerariesManager.shared.reloadItineraries()
+                    }
+                }
+            }
+    }
+    
+    private func updateCommentsWithNewProfileImage(userID: String, imageURL: String) {
+        let db = Firestore.firestore()
+        // Get all itineraries to update comments
+        db.collection("itineraries").getDocuments { snapshot, error in
+            if let error = error {
+                print("Error fetching itineraries for comment update: \(error.localizedDescription)")
+                return
+            }
+            
+            guard let itineraryDocs = snapshot?.documents else { return }
+            
+            for itineraryDoc in itineraryDocs {
+                db.collection("itineraries").document(itineraryDoc.documentID)
+                    .collection("comments")
+                    .whereField("authorID", isEqualTo: userID)
+                    .getDocuments { snapshot, error in
+                        if let error = error {
+                            print("Error updating comments: \(error.localizedDescription)")
+                            return
+                        }
+                        
+                        guard let commentDocs = snapshot?.documents else { return }
+                        
+                        let batch = db.batch()
+                        for commentDoc in commentDocs {
+                            batch.updateData(["authorProfileImageURL": imageURL], forDocument: commentDoc.reference)
+                        }
+                        
+                        batch.commit { error in
+                            if let error = error {
+                                print("Error batch updating comments: \(error.localizedDescription)")
+                            }
+                        }
+                    }
             }
         }
     }
@@ -437,15 +506,90 @@ struct ItineraryGridItem: View {
                 )
                 .aspectRatio(1, contentMode: .fit)
             
-            VStack {
-                Text(itinerary.category.emoji)
-                    .font(.system(size: 30))
-                Text(itinerary.title)
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.white)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .padding(.horizontal, 4)
+            // Show photo if available, otherwise show emoji
+            if let firstPhotoURL = itinerary.photos.first, !firstPhotoURL.isEmpty,
+               let url = URL(string: firstPhotoURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        VStack {
+                            Text(itinerary.category.emoji)
+                                .font(.system(size: 30))
+                            Text(itinerary.title)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .padding(.horizontal, 4)
+                        }
+                    case .success(let image):
+                        ZStack(alignment: .bottom) {
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .clipped()
+                            
+                            // Title overlay
+                            VStack {
+                                Spacer()
+                                Text(itinerary.title)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .padding(.horizontal, 4)
+                                    .padding(.bottom, 4)
+                                    .frame(maxWidth: .infinity)
+                                    .background(
+                                        LinearGradient(
+                                            colors: [Color.black.opacity(0.6), Color.clear],
+                                            startPoint: .bottom,
+                                            endPoint: .top
+                                        )
+                                    )
+                            }
+                        }
+                    case .failure:
+                        VStack {
+                            Text(itinerary.category.emoji)
+                                .font(.system(size: 30))
+                            Text(itinerary.title)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .padding(.horizontal, 4)
+                        }
+                    @unknown default:
+                        VStack {
+                            Text(itinerary.category.emoji)
+                                .font(.system(size: 30))
+                            Text(itinerary.title)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                                .padding(.horizontal, 4)
+                        }
+                    }
+                }
+            } else {
+                VStack {
+                    Text(itinerary.category.emoji)
+                        .font(.system(size: 30))
+                    Text(itinerary.title)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .padding(.horizontal, 4)
+                }
             }
         }
     }

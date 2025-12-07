@@ -497,15 +497,51 @@ class CommentsViewModel: ObservableObject {
                 }
                 
                 guard let documents = snapshot?.documents else {
+                    // If no documents, set empty replies array
+                    DispatchQueue.main.async {
+                        guard let index = self.comments.firstIndex(where: { $0.id == parentID }),
+                              !self.comments[index].replies.isEmpty else {
+                            return
+                        }
+                        
+                        var updatedComment = self.comments[index]
+                        updatedComment.replies = []
+                        
+                        // Create a completely new array
+                        var updatedComments: [Comment] = []
+                        for (i, comment) in self.comments.enumerated() {
+                            if i == index {
+                                updatedComments.append(updatedComment)
+                            } else {
+                                updatedComments.append(comment)
+                            }
+                        }
+                        self.comments = updatedComments
+                    }
                     return
                 }
                 
                 let replies = documents.compactMap { self.commentFromFirestore($0) }
                 
                 DispatchQueue.main.async {
-                    if let index = self.comments.firstIndex(where: { $0.id == parentID }) {
-                        self.comments[index].replies = replies
+                    guard let index = self.comments.firstIndex(where: { $0.id == parentID }) else {
+                        return
                     }
+                    
+                    // Create a new comment with updated replies to ensure SwiftUI detects the change
+                    var updatedComment = self.comments[index]
+                    updatedComment.replies = replies
+                    
+                    // Create a completely new array to trigger SwiftUI's change detection
+                    var updatedComments: [Comment] = []
+                    for (i, comment) in self.comments.enumerated() {
+                        if i == index {
+                            updatedComments.append(updatedComment)
+                        } else {
+                            updatedComments.append(comment)
+                        }
+                    }
+                    self.comments = updatedComments
                 }
             }
         
@@ -710,6 +746,7 @@ struct CommentsView: View {
     @State private var newCommentText = ""
     @State private var replyingTo: Comment?
     @State private var replyText = ""
+    @FocusState private var isReplyFieldFocused: Bool
     
     var body: some View {
         NavigationView {
@@ -737,8 +774,10 @@ struct CommentsView: View {
                                     commentsViewModel: commentsViewModel,
                                     onReply: { parentComment in
                                         replyingTo = parentComment
+                                        isReplyFieldFocused = true
                                     }
                                 )
+                                .id(comment.id)
                                 .padding(.horizontal, 20)
                                 
                                 // Show replies
@@ -770,6 +809,7 @@ struct CommentsView: View {
                             Button("Cancel") {
                                 replyingTo = nil
                                 replyText = ""
+                                isReplyFieldFocused = false
                             }
                             .font(.system(size: 12))
                             .foregroundColor(.blue)
@@ -780,12 +820,14 @@ struct CommentsView: View {
                             TextField("Write a reply...", text: $replyText, axis: .vertical)
                                 .textFieldStyle(.roundedBorder)
                                 .lineLimit(1...4)
+                                .focused($isReplyFieldFocused)
                             
                             Button(action: {
                                 if !replyText.trimmingCharacters(in: .whitespaces).isEmpty {
                                     commentsViewModel.addReply(to: parentComment.id, content: replyText)
                                     replyText = ""
                                     replyingTo = nil
+                                    isReplyFieldFocused = false
                                 }
                             }) {
                                 Text("Reply")

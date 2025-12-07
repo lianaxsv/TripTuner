@@ -38,6 +38,7 @@ struct AddItineraryView: View {
         !title.trimmingCharacters(in: .whitespaces).isEmpty &&
         !description.trimmingCharacters(in: .whitespaces).isEmpty &&
         !stops.isEmpty &&
+        !selectedPhotos.isEmpty && // At least one photo required
         selectedCategory != nil &&
         selectedCategory != .all &&
         selectedRegion != nil &&
@@ -58,13 +59,18 @@ struct AddItineraryView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section("Photos (Optional)") {
+                Section("Photos *") {
                     PhotosPicker(selection: $selectedPhotos, maxSelectionCount: 5, matching: .images) {
                         HStack {
                             Image(systemName: "photo")
-                            Text(selectedPhotos.isEmpty ? "Add Photos" : "\(selectedPhotos.count) photo(s) selected")
+                            Text(selectedPhotos.isEmpty ? "Add at least 1 photo" : "\(selectedPhotos.count) photo(s) selected")
                         }
                         .foregroundColor(.blue)
+                    }
+                    if selectedPhotos.isEmpty {
+                        Text("At least one photo is required")
+                            .font(.system(size: 12))
+                            .foregroundColor(.red)
                     }
                 }
                 

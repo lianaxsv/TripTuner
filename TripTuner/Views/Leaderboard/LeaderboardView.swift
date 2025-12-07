@@ -44,11 +44,15 @@ struct LeaderboardView: View {
                                 }) {
                                     Text(period.rawValue)
                                         .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(viewModel.selectedPeriod == period ? .white : .gray)
+                                        .foregroundColor(viewModel.selectedPeriod == period ? .white : .pennRed)
                                         .padding(.horizontal, 20)
                                         .padding(.vertical, 8)
-                                        .background(viewModel.selectedPeriod == period ? Color.gray.opacity(0.3) : Color.white)
+                                        .background(viewModel.selectedPeriod == period ? Color.pennRed : Color.white)
                                         .cornerRadius(20)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 20)
+                                                .stroke(viewModel.selectedPeriod == period ? Color.clear : Color.pennRed, lineWidth: 1)
+                                        )
                                 }
                             }
                         }
@@ -75,27 +79,62 @@ struct LeaderboardView: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 32)
                         
-                        // Remaining Entries
-                        VStack(spacing: 0) {
-                            ForEach(viewModel.remainingEntries) { entry in
-                                LeaderboardRowView(entry: entry)
+                        // Public Entries (Top 10, excluding top 3)
+                        if !viewModel.publicEntries.isEmpty {
+                            VStack(spacing: 0) {
+                                ForEach(viewModel.publicEntries) { entry in
+                                    LeaderboardRowView(entry: entry)
+                                        .padding(.horizontal, 20)
+                                        .padding(.vertical, 12)
+                                    
+                                    Divider()
+                                        .padding(.leading, 20)
+                                }
+                            }
+                            .background(Color.white)
+                            .cornerRadius(16)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 20)
+                        }
+                        
+                        // Current User's Private Rank
+                        if let userEntry = viewModel.currentUserEntry,
+                           userEntry.rank > 10 {
+                            VStack(spacing: 12) {
+                                Divider()
+                                    .padding(.horizontal, 20)
+                                
+                                HStack {
+                                    Text("Your Rank")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.gray)
+                                    Spacer()
+                                    Text("#\(userEntry.rank)")
+                                        .font(.system(size: 16, weight: .bold))
+                                        .foregroundColor(.pennRed)
+                                }
+                                .padding(.horizontal, 20)
+                                
+                                LeaderboardRowView(entry: userEntry)
                                     .padding(.horizontal, 20)
                                     .padding(.vertical, 12)
-                                
-                                Divider()
-                                    .padding(.leading, 20)
                             }
+                            .background(Color.white)
+                            .cornerRadius(16)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 20)
                         }
-                        .background(Color.white)
-                        .cornerRadius(16)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
                     }
                 }
                 .background(Color.white)
             }
+        
+        .onAppear {
+            // Always load profile pictures when view appears
+            viewModel.loadProfilePictures()
         }
     }
+}
 
 struct PodiumView: View {
     let entry: LeaderboardEntry
@@ -113,10 +152,50 @@ struct PodiumView: View {
     var body: some View {
         VStack(spacing: 8) {
             ZStack(alignment: .topTrailing) {
-                Circle()
-                    .fill(Color.gray.opacity(0.3))
-                    .frame(width: rank == 1 ? 80 : 60, height: rank == 1 ? 80 : 60)
+                // Profile picture
+                if let profileImageURL = entry.user.profileImageURL, !profileImageURL.isEmpty,
+                   let url = URL(string: profileImageURL) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: rank == 1 ? 80 : 60, height: rank == 1 ? 80 : 60)
+                                .overlay(
+                                    ProgressView()
+                                        .tint(.gray)
+                                )
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: rank == 1 ? 80 : 60, height: rank == 1 ? 80 : 60)
+                                .clipShape(Circle())
+                        case .failure:
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: rank == 1 ? 80 : 60, height: rank == 1 ? 80 : 60)
+                                .overlay(
+                                    Image(systemName: "person.fill")
+                                        .foregroundColor(.gray)
+                                )
+                        @unknown default:
+                            Circle()
+                                .fill(Color.gray.opacity(0.3))
+                                .frame(width: rank == 1 ? 80 : 60, height: rank == 1 ? 80 : 60)
+                        }
+                    }
+                } else {
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: rank == 1 ? 80 : 60, height: rank == 1 ? 80 : 60)
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.gray)
+                        )
+                }
                 
+                // Rank badge
                 ZStack {
                     Circle()
                         .fill(rankColor)
@@ -130,6 +209,8 @@ struct PodiumView: View {
             
             Text(entry.user.name)
                 .font(.system(size: 14, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
             
             Text("\(entry.points) points")
                 .font(.system(size: 12))
@@ -153,13 +234,56 @@ struct LeaderboardRowView: View {
                 .foregroundColor(.gray)
                 .frame(width: 40)
             
-            Circle()
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 40, height: 40)
+            // Profile picture
+            if let profileImageURL = entry.user.profileImageURL, !profileImageURL.isEmpty,
+               let url = URL(string: profileImageURL) {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .empty:
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 40, height: 40)
+                            .overlay(
+                                ProgressView()
+                                    .tint(.gray)
+                            )
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 40, height: 40)
+                            .clipShape(Circle())
+                    case .failure:
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 40, height: 40)
+                            .overlay(
+                                Image(systemName: "person.fill")
+                                    .foregroundColor(.gray)
+                                    .font(.system(size: 20))
+                            )
+                    @unknown default:
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 40, height: 40)
+                    }
+                }
+            } else {
+                Circle()
+                    .fill(Color.gray.opacity(0.3))
+                    .frame(width: 40, height: 40)
+                    .overlay(
+                        Image(systemName: "person.fill")
+                            .foregroundColor(.gray)
+                            .font(.system(size: 20))
+                    )
+            }
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.user.name)
                     .font(.system(size: 16, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
                 
                 HStack(spacing: 4) {
                     Text(entry.user.handle)

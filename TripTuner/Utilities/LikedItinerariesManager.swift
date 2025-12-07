@@ -73,14 +73,21 @@ class LikedItinerariesManager: ObservableObject {
             DispatchQueue.main.async {
                 for document in documents {
                     let itineraryID = document.documentID
-                    // Count likes from Firestore
+                    // Count likes from Firestore subcollection (read-only, no updates)
                     self.db.collection("itineraries").document(itineraryID)
                         .collection("likes")
-                        .getDocuments { snapshot, error in
-                            if let snapshot = snapshot {
-                                DispatchQueue.main.async {
-                                    self.itineraryLikeCounts[itineraryID] = snapshot.documents.count
-                                }
+                        .addSnapshotListener { snapshot, error in
+                            if let error = error {
+                                print("Error loading like count for \(itineraryID): \(error.localizedDescription)")
+                                return
+                            }
+                            
+                            let count = snapshot?.documents.count ?? 0
+                            
+                            DispatchQueue.main.async {
+                                self.itineraryLikeCounts[itineraryID] = count
+                                // Update ItinerariesManager with the count (read-only, no Firestore write)
+                                ItinerariesManager.shared.updateLikeCount(for: itineraryID, newCount: count)
                             }
                         }
                 }
@@ -125,14 +132,8 @@ class LikedItinerariesManager: ObservableObject {
             let newCount = max(0, currentCount - 1)
             itineraryLikeCounts[itineraryID] = newCount
             
-            // Update itinerary document
-            db.collection("itineraries").document(itineraryID).updateData([
-                "likes": newCount
-            ]) { error in
-                if let error = error {
-                    print("Error updating like count: \(error.localizedDescription)")
-                }
-            }
+            // Update ItinerariesManager (no Firestore write - count is managed by subcollection)
+            ItinerariesManager.shared.updateLikeCount(for: itineraryID, newCount: newCount)
             
             return newCount
         } else {
@@ -160,14 +161,8 @@ class LikedItinerariesManager: ObservableObject {
             let newCount = currentCount + 1
             itineraryLikeCounts[itineraryID] = newCount
             
-            // Update itinerary document
-            db.collection("itineraries").document(itineraryID).updateData([
-                "likes": newCount
-            ]) { error in
-                if let error = error {
-                    print("Error updating like count: \(error.localizedDescription)")
-                }
-            }
+            // Update ItinerariesManager (no Firestore write - count is managed by subcollection)
+            ItinerariesManager.shared.updateLikeCount(for: itineraryID, newCount: newCount)
             
             return newCount
         }

@@ -77,7 +77,7 @@ struct HomeView: View {
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
                                 .frame(width: 32, height: 32)
-                                .background(Color.blue)
+                                .background(Color.pennRed)
                                 .clipShape(Circle())
                         }
                     }
@@ -492,7 +492,7 @@ struct TopItineraryCard: View {
     var body: some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
-                // Image placeholder
+                // Show photo if available, otherwise show gradient with emoji
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(
@@ -504,9 +504,39 @@ struct TopItineraryCard: View {
                         )
                         .frame(width: 200, height: 120)
                     
-                    VStack {
-                        Text(itinerary.category.emoji)
-                            .font(.system(size: 40))
+                    if let firstPhotoURL = itinerary.photos.first, !firstPhotoURL.isEmpty,
+                       let url = URL(string: firstPhotoURL) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .empty:
+                                VStack {
+                                    Text(itinerary.category.emoji)
+                                        .font(.system(size: 40))
+                                }
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 200, height: 120)
+                                    .clipped()
+                                    .cornerRadius(12)
+                            case .failure:
+                                VStack {
+                                    Text(itinerary.category.emoji)
+                                        .font(.system(size: 40))
+                                }
+                            @unknown default:
+                                VStack {
+                                    Text(itinerary.category.emoji)
+                                        .font(.system(size: 40))
+                                }
+                            }
+                        }
+                    } else {
+                        VStack {
+                            Text(itinerary.category.emoji)
+                                .font(.system(size: 40))
+                        }
                     }
                 }
                 
@@ -515,13 +545,14 @@ struct TopItineraryCard: View {
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.black)
                         .lineLimit(1)
+                        .truncationMode(.tail)
                     
                     HStack(spacing: 4) {
                         HStack(spacing: 4) {
                             Image(systemName: "hand.thumbsup.fill")
                                 .font(.system(size: 10))
                                 .foregroundColor(.pennRed)
-                            Text("\(itinerary.likes)")
+                            Text("\(LikedItinerariesManager.shared.getLikeCount(for: itinerary.id, defaultCount: itinerary.likes))")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(.pennRed)
                         }
