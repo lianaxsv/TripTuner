@@ -46,20 +46,34 @@ class ProfileViewModel: ObservableObject {
             self.savedItineraries = self.savedManager.getSavedItineraries(from: self.itinerariesManager.itineraries)
             self.tripsCompleted = self.completedItineraries.count
             self.updateNeighborhoodStats()
+            self.updateAchievements()
             self.isLoading = false
         }
     }
     
     private func updateNeighborhoodStats() {
         let regions = completedItineraries
-            .compactMap { $0.region?.rawValue }  // if region is optional; if not, just use `$0.region`
+            .compactMap {
+                // Prefer the region enum when available
+                if let region = $0.region {
+                    return region.rawValue
+                }
+                // Fallback to the Firestore string
+                return $0.regionString
+            }
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { $0.isEmpty }
+            .filter { !$0.isEmpty }
+
+        print("DEBUG — Regions: \(regions)")
 
         let unique = Array(Set(regions)).sorted()
         neighborhoods = unique
         neighborhoodsExplored = unique.count
+
+        print("DEBUG — Unique:", unique)
+        print("DEBUG — Count:", neighborhoodsExplored)
     }
+
     
     func loadProfileImage() {
         guard let userID = Auth.auth().currentUser?.uid else {
@@ -106,5 +120,42 @@ class ProfileViewModel: ObservableObject {
     func refreshStats() {
         loadUserData()
         loadProfileImage()
+    }
+    func updateAchievements() {
+        print("DEBUG: \(neighborhoodsExplored)")
+
+        guard var user = user else { return }
+        
+        var updatedAchievements: [Achievement] = []
+        
+        for var achievement in MockData.achievements {
+            switch achievement.title {
+            
+            case "Explorer":
+                if neighborhoodsExplored >= 5 && achievement.unlockedAt == nil {
+                    achievement.unlockedAt = Date()
+                }
+                
+            case "Goal Crusher":
+                if tripsCompleted >= 20 && achievement.unlockedAt == nil {
+                    achievement.unlockedAt = Date()
+                }
+            
+            case "Coffee Connoisseur":
+                let cafeVisits = completedItineraries.filter { $0.category == .cafes }.count
+                if cafeVisits >= 10 && achievement.unlockedAt == nil {
+                    achievement.unlockedAt = Date()
+                }
+            
+            default:
+                break
+            }
+            
+            updatedAchievements.append(achievement)
+        }
+        
+        user.achievements = updatedAchievements
+        self.user = user
+        print("DEBUG: \(updatedAchievements)")
     }
 }

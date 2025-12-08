@@ -209,6 +209,11 @@ struct HomeView: View {
                                         viewModel.selectedNoiseLevel = nil
                                     }
                                 }
+                                if let time = viewModel.selectedTimeEstimate {
+                                    FilterTag(text: time.displayName, emoji: time.emoji) {
+                                        viewModel.selectedTimeEstimate = nil
+                                    }
+                                }
                             }
                             .padding(.horizontal, 20)
                         }
@@ -356,6 +361,10 @@ struct HomeView: View {
         case .restaurants: return .red
         case .cafes: return .orange
         case .attractions: return .blue
+        case .shopping: return .pink
+        case .nature: return .green
+        case .nightlife: return .yellow
+        case .fitness: return .purple
         case .all: return .gray
         }
     }

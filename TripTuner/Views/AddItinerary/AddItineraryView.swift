@@ -436,7 +436,7 @@ struct AddItineraryView: View {
                         region: region
                     )
                     
-                    
+                    CompletedItinerariesManager.shared.markCompleted(newItinerary.id)
                     self.itinerariesManager.addItinerary(newItinerary)
                     self.isLoading = false
                     self.clearDraftState()
@@ -464,6 +464,7 @@ struct AddItineraryView: View {
                     noiseLevel: self.currentNoiseLevel,
                     region: region
                 )
+                CompletedItinerariesManager.shared.markCompleted(newItinerary.id)
                 self.itinerariesManager.addItinerary(newItinerary)
                 self.isLoading = false
                 self.clearDraftState()

@@ -135,12 +135,12 @@ struct MockData {
     static let neighborhoods = ["Fishtown", "Old City", "Rittenhouse", "University City", "South Philly", "Northern Liberties", "Center City"]
     
     static let achievements = [
-        Achievement(title: "Explorer", description: "Visited 5+ neighborhoods", emoji: "🏆", unlockedAt: Date()),
-        Achievement(title: "Top Contributor", description: "Posted 10+ itineraries", emoji: "⭐", unlockedAt: Date()),
-        Achievement(title: "Coffee Connoisseur", description: "Visited 10+ cafes", emoji: "☕", unlockedAt: Date()),
-        Achievement(title: "Goal Crusher", description: "Completed 20+ trips", emoji: "🎯", unlockedAt: Date()),
-        Achievement(title: "Foodie", description: "Visited 20+ restaurants", emoji: "🍽️"),
-        Achievement(title: "Social Butterfly", description: "Received 100+ likes", emoji: "🦋")
+        Achievement(title: "Explorer", description: "Visited 5+ neighborhoods", emoji: "🏆", unlockedAt: nil),
+        Achievement(title: "Top Contributor", description: "Posted 10+ itineraries", emoji: "⭐", unlockedAt: nil),
+        Achievement(title: "Coffee Connoisseur", description: "Visited 10+ cafes", emoji: "☕", unlockedAt: nil),
+        Achievement(title: "Goal Crusher", description: "Completed 20+ trips", emoji: "🎯", unlockedAt: nil),
+        Achievement(title: "Foodie", description: "Visited 20+ restaurants", emoji: "🍽️", unlockedAt: nil),
+        Achievement(title: "Social Butterfly", description: "Received 100+ likes", emoji: "🦋", unlockedAt: nil)
     ]
 }
 

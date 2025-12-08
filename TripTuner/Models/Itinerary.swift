@@ -30,6 +30,12 @@ struct Itinerary: Identifiable, Codable {
     var isLiked: Bool
     var isSaved: Bool
     
+    var regionStringRaw: String? = nil
+
+    var regionString: String {
+        return region?.rawValue ?? ""
+    }
+    
     init(id: String = UUID().uuidString,
          title: String,
          description: String,
@@ -74,16 +80,24 @@ struct Itinerary: Identifiable, Codable {
 }
 
 enum ItineraryCategory: String, Codable, CaseIterable {
-    case all = "All"
     case restaurants = "Restaurants"
     case cafes = "Cafes"
     case attractions = "Attractions"
+    case shopping = "Shopping"
+    case nature = "Nature"
+    case nightlife = "Nightlife"
+    case fitness = "Fitness"
+    case all = "All"
     
     var emoji: String {
         switch self {
         case .restaurants: return "🍽️ "
         case .cafes: return "☕"
         case .attractions: return "🎯"
+        case .shopping: return "🛍️"
+        case .nature: return "🌿"
+        case .nightlife: return "🍹"
+        case .fitness: return "🏃‍♀️"
         case .all: return "📍"
         }
     }
@@ -93,6 +107,10 @@ enum ItineraryCategory: String, Codable, CaseIterable {
         case .restaurants: return "red"
         case .cafes: return "yellow"
         case .attractions: return "blue"
+        case .shopping: return "pink"
+        case .nature: return "green"
+        case .nightlife: return "yellow"
+        case .fitness: return "purple"
         case .all: return "gray"
         }
     }

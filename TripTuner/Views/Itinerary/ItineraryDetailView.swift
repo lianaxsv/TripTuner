@@ -220,10 +220,6 @@ struct ItineraryDetailView: View {
                         
                         Spacer()
                         
-                        Button(action: {}) {
-                            Image(systemName: "square.and.arrow.up")
-                                .foregroundColor(.gray)
-                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
@@ -427,7 +423,7 @@ class CommentsViewModel: ObservableObject {
     
     private let db = Firestore.firestore()
     private var commentsListener: ListenerRegistration?
-    private var replyListeners: [String: ListenerRegistration] = [:]
+//    private var replyListeners: [String: ListenerRegistration] = [:]
     
     init(itineraryID: String) {
         self.itineraryID = itineraryID
@@ -436,7 +432,7 @@ class CommentsViewModel: ObservableObject {
     
     deinit {
         commentsListener?.remove()
-        replyListeners.values.forEach { $0.remove() }
+//        replyListeners.values.forEach { $0.remove() }
     }
     
     func loadComments() {
@@ -445,7 +441,7 @@ class CommentsViewModel: ObservableObject {
         // Load top-level comments (no parent) with real-time listener
         commentsListener = db.collection("itineraries").document(itineraryID)
             .collection("comments")
-            .whereField("parentCommentID", isEqualTo: NSNull())
+//            .whereField("parentCommentID", isEqualTo: NSNull())
             .order(by: "createdAt", descending: true)
             .addSnapshotListener { [weak self] snapshot, error in
                 guard let self = self else { return }
@@ -470,7 +466,7 @@ class CommentsViewModel: ObservableObject {
                             loadedComments.append(comment)
                             
                             // Set up real-time listener for replies
-                            self.setupReplyListener(for: comment.id)
+//                            self.setupReplyListener(for: comment.id)
                         }
                     }
                     
@@ -479,96 +475,97 @@ class CommentsViewModel: ObservableObject {
             }
     }
     
-    private func setupReplyListener(for parentID: String) {
-        // Remove existing listener if any
-        replyListeners[parentID]?.remove()
-        
-        // Set up real-time listener for replies
-        let listener = db.collection("itineraries").document(itineraryID)
-            .collection("comments")
-            .whereField("parentCommentID", isEqualTo: parentID)
-            .order(by: "createdAt", descending: false)
-            .addSnapshotListener { [weak self] snapshot, error in
-                guard let self = self else { return }
-                
-                if let error = error {
-                    print("Error loading replies: \(error.localizedDescription)")
-                    return
-                }
-                
-                guard let documents = snapshot?.documents else {
-                    // If no documents, set empty replies array
-                    DispatchQueue.main.async {
-                        guard let index = self.comments.firstIndex(where: { $0.id == parentID }),
-                              !self.comments[index].replies.isEmpty else {
-                            return
-                        }
-                        
-                        var updatedComment = self.comments[index]
-                        updatedComment.replies = []
-                        
-                        // Create a completely new array
-                        var updatedComments: [Comment] = []
-                        for (i, comment) in self.comments.enumerated() {
-                            if i == index {
-                                updatedComments.append(updatedComment)
-                            } else {
-                                updatedComments.append(comment)
-                            }
-                        }
-                        self.comments = updatedComments
-                    }
-                    return
-                }
-                
-                let replies = documents.compactMap { self.commentFromFirestore($0) }
-                
-                DispatchQueue.main.async {
-                    guard let index = self.comments.firstIndex(where: { $0.id == parentID }) else {
-                        return
-                    }
-                    
-                    // Create a new comment with updated replies to ensure SwiftUI detects the change
-                    var updatedComment = self.comments[index]
-                    updatedComment.replies = replies
-                    
-                    // Create a completely new array to trigger SwiftUI's change detection
-                    var updatedComments: [Comment] = []
-                    for (i, comment) in self.comments.enumerated() {
-                        if i == index {
-                            updatedComments.append(updatedComment)
-                        } else {
-                            updatedComments.append(comment)
-                        }
-                    }
-                    self.comments = updatedComments
-                }
-            }
-        
-        replyListeners[parentID] = listener
-    }
-    
-    private func loadReplies(for parentID: String, completion: @escaping ([Comment]) -> Void) {
-        db.collection("itineraries").document(itineraryID)
-            .collection("comments")
-            .whereField("parentCommentID", isEqualTo: parentID)
-            .order(by: "createdAt", descending: false)
-            .getDocuments { snapshot, error in
-                if let error = error {
-                    print("Error loading replies: \(error.localizedDescription)")
-                    completion([])
-                    return
-                }
-                
-                guard let documents = snapshot?.documents else {
-                    completion([])
-                    return
-                }
-                
-                let replies = documents.compactMap { self.commentFromFirestore($0) }
-                completion(replies)
-            }
-    }
+//    private func setupReplyListener(for parentID: String) {
+//        // Remove existing listener if any
+//        replyListeners[parentID]?.remove()
+//        
+//        // Set up real-time listener for replies
+//        let listener = db.collection("itineraries").document(itineraryID)
+//            .collection("comments")
+//            .whereField("parentCommentID", isEqualTo: parentID)
+//            .order(by: "createdAt", descending: false)
+//            .addSnapshotListener { [weak self] snapshot, error in
+//                guard let self = self else { return }
+//                
+//                if let error = error {
+//                    print("Error loading replies: \(error.localizedDescription)")
+//                    return
+//                }
+//                
+//                guard let documents = snapshot?.documents else {
+//                    // If no documents, set empty replies array
+//                    DispatchQueue.main.async {
+//                        guard let index = self.comments.firstIndex(where: { $0.id == parentID }),
+//                              !self.comments[index].replies.isEmpty else {
+//                            return
+//                        }
+//                        
+//                        var updatedComment = self.comments[index]
+//                        updatedComment.replies = []
+//                        
+//                        // Create a completely new array
+//                        var updatedComments: [Comment] = []
+//                        for (i, comment) in self.comments.enumerated() {
+//                            if i == index {
+//                                updatedComments.append(updatedComment)
+//                            } else {
+//                                updatedComments.append(comment)
+//                            }
+//                        }
+//                        self.comments = updatedComments
+//                    }
+//                    return
+//                }
+//                
+//                let replies = documents.compactMap { self.commentFromFirestore($0) }
+//                
+//                DispatchQueue.main.async {
+//                    guard let index = self.comments.firstIndex(where: { $0.id == parentID }) else {
+//                        return
+//                    }
+//                    
+//                    // Create a new comment with updated replies to ensure SwiftUI detects the change
+//                    var updatedComment = self.comments[index]
+//                    updatedComment.replies = replies
+//                    
+//                    // Create a completely new array to trigger SwiftUI's change detection
+//                    var updatedComments: [Comment] = []
+//                    for (i, comment) in self.comments.enumerated() {
+//                        if i == index {
+//                            updatedComments.append(updatedComment)
+//                        } else {
+//                            updatedComments.append(comment)
+//                        }
+//                    }
+//                    self.comments = updatedComments
+//                    self.objectWillChange.send()  // <-- ADD THIS FIX
+//                }
+//            }
+//        
+//        replyListeners[parentID] = listener
+//    }
+//    
+//    private func loadReplies(for parentID: String, completion: @escaping ([Comment]) -> Void) {
+//        db.collection("itineraries").document(itineraryID)
+//            .collection("comments")
+//            .whereField("parentCommentID", isEqualTo: parentID)
+//            .order(by: "createdAt", descending: false)
+//            .getDocuments { snapshot, error in
+//                if let error = error {
+//                    print("Error loading replies: \(error.localizedDescription)")
+//                    completion([])
+//                    return
+//                }
+//                
+//                guard let documents = snapshot?.documents else {
+//                    completion([])
+//                    return
+//                }
+//                
+//                let replies = documents.compactMap { self.commentFromFirestore($0) }
+//                completion(replies)
+//            }
+//    }
     
     private func commentFromFirestore(_ document: QueryDocumentSnapshot) -> Comment? {
         let data = document.data()
@@ -585,7 +582,7 @@ class CommentsViewModel: ObservableObject {
         let authorProfileImageURL = (authorProfileImageURLString?.isEmpty == false) ? authorProfileImageURLString : nil
         let likes = data["likes"] as? Int ?? 0
         let dislikes = data["dislikes"] as? Int ?? 0
-        let parentCommentID = data["parentCommentID"] as? String
+//        let parentCommentID = data["parentCommentID"] as? String
         
         return Comment(
             id: document.documentID,
@@ -599,9 +596,9 @@ class CommentsViewModel: ObservableObject {
             dislikes: dislikes,
             createdAt: createdAtTimestamp.dateValue(),
             isLiked: false,
-            isDisliked: false,
-            replies: [],
-            parentCommentID: parentCommentID
+            isDisliked: false
+//            replies: [],
+//            parentCommentID: parentCommentID
         )
     }
     
@@ -628,7 +625,7 @@ class CommentsViewModel: ObservableObject {
                 "likes": 0,
                 "dislikes": 0,
                 "createdAt": FieldValue.serverTimestamp(),
-                "parentCommentID": NSNull()
+//                "parentCommentID": NSNull()
             ]
             
             self.db.collection("itineraries").document(self.itineraryID)
@@ -644,43 +641,43 @@ class CommentsViewModel: ObservableObject {
         }
     }
     
-    func addReply(to parentID: String, content: String) {
-        guard let userID = Auth.auth().currentUser?.uid else {
-            return
-        }
-        
-        // Get user info from Firestore
-        db.collection("users").document(userID).getDocument { [weak self] snapshot, error in
-            guard let self = self else { return }
-            
-            let authorName = snapshot?.data()?["name"] as? String ?? "User"
-            let authorHandle = snapshot?.data()?["handle"] as? String ?? "@user"
-            let authorProfileImageURL = snapshot?.data()?["profileImageURL"] as? String
-            
-            let replyData: [String: Any] = [
-                "authorID": userID,
-                "authorName": authorName,
-                "authorHandle": authorHandle,
-                "authorProfileImageURL": authorProfileImageURL ?? NSNull(),
-                "itineraryID": self.itineraryID,
-                "content": content,
-                "likes": 0,
-                "dislikes": 0,
-                "createdAt": FieldValue.serverTimestamp(),
-                "parentCommentID": parentID
-            ]
-            
-            self.db.collection("itineraries").document(self.itineraryID)
-                .collection("comments")
-                .addDocument(data: replyData) { error in
-                    if let error = error {
-                        print("Error adding reply: \(error.localizedDescription)")
-                    } else {
-                        self.updateCommentCount()
-                    }
-                }
-        }
-    }
+//    func addReply(to parentID: String, content: String) {
+//        guard let userID = Auth.auth().currentUser?.uid else {
+//            return
+//        }
+//        
+//        // Get user info from Firestore
+//        db.collection("users").document(userID).getDocument { [weak self] snapshot, error in
+//            guard let self = self else { return }
+//            
+//            let authorName = snapshot?.data()?["name"] as? String ?? "User"
+//            let authorHandle = snapshot?.data()?["handle"] as? String ?? "@user"
+//            let authorProfileImageURL = snapshot?.data()?["profileImageURL"] as? String
+//            
+//            let replyData: [String: Any] = [
+//                "authorID": userID,
+//                "authorName": authorName,
+//                "authorHandle": authorHandle,
+//                "authorProfileImageURL": authorProfileImageURL ?? NSNull(),
+//                "itineraryID": self.itineraryID,
+//                "content": content,
+//                "likes": 0,
+//                "dislikes": 0,
+//                "createdAt": FieldValue.serverTimestamp(),
+//                "parentCommentID": parentID
+//            ]
+//            
+//            self.db.collection("itineraries").document(self.itineraryID)
+//                .collection("comments")
+//                .addDocument(data: replyData) { error in
+//                    if let error = error {
+//                        print("Error adding reply: \(error.localizedDescription)")
+//                    } else {
+//                        self.updateCommentCount()
+//                    }
+//                }
+//        }
+//    }
     
     func deleteComment(_ commentID: String) {
         guard let userID = Auth.auth().currentUser?.uid else {
@@ -703,16 +700,16 @@ class CommentsViewModel: ObservableObject {
                             } else {
                                 // Also delete any replies
                                 self.db.collection("itineraries").document(self.itineraryID)
-                                    .collection("comments")
-                                    .whereField("parentCommentID", isEqualTo: commentID)
-                                    .getDocuments { snapshot, error in
-                                        if let documents = snapshot?.documents {
-                                            for document in documents {
-                                                document.reference.delete()
-                                            }
-                                        }
-                                        self.updateCommentCount()
-                                    }
+//                                    .collection("comments")
+//                                    .whereField("parentCommentID", isEqualTo: commentID)
+//                                    .getDocuments { snapshot, error in
+//                                        if let documents = snapshot?.documents {
+//                                            for document in documents {
+//                                                document.reference.delete()
+//                                            }
+//                                        }
+//                                        self.updateCommentCount()
+//                                    }
                             }
                         }
                 }
@@ -735,7 +732,8 @@ class CommentsViewModel: ObservableObject {
     }
     
     var totalCommentCount: Int {
-        comments.count + comments.reduce(0) { $0 + $1.replies.count }
+        comments.count
+//        + comments.reduce(0) { $0 + $1.replies.count }
     }
 }
 
@@ -744,9 +742,9 @@ struct CommentsView: View {
     @ObservedObject var commentsViewModel: CommentsViewModel
     @Environment(\.dismiss) var dismiss
     @State private var newCommentText = ""
-    @State private var replyingTo: Comment?
-    @State private var replyText = ""
-    @FocusState private var isReplyFieldFocused: Bool
+//    @State private var replyingTo: Comment?
+//    @State private var replyText = ""
+//    @FocusState private var isReplyFieldFocused: Bool
     
     var body: some View {
         NavigationView {
@@ -771,27 +769,27 @@ struct CommentsView: View {
                             ForEach(commentsViewModel.comments) { comment in
                                 CommentRowView(
                                     comment: comment,
-                                    commentsViewModel: commentsViewModel,
-                                    onReply: { parentComment in
-                                        replyingTo = parentComment
-                                        isReplyFieldFocused = true
-                                    }
+                                    commentsViewModel: commentsViewModel
+//                                    onReply: { parentComment in
+//                                        replyingTo = parentComment
+//                                        isReplyFieldFocused = true
+//                                    }
                                 )
                                 .id(comment.id)
                                 .padding(.horizontal, 20)
                                 
                                 // Show replies
-                                if !comment.replies.isEmpty {
-                                    ForEach(comment.replies) { reply in
-                                        CommentRowView(
-                                            comment: reply,
-                                            commentsViewModel: commentsViewModel,
-                                            isReply: true
-                                        )
-                                        .padding(.leading, 60)
-                                        .padding(.trailing, 20)
-                                    }
-                                }
+//                                if !comment.replies.isEmpty {
+//                                    ForEach(comment.replies) { reply in
+//                                        CommentRowView(
+//                                            comment: reply,
+//                                            commentsViewModel: commentsViewModel,
+//                                            isReply: true
+//                                        )
+//                                        .padding(.leading, 60)
+//                                        .padding(.trailing, 20)
+//                                    }
+//                                }
                             }
                         }
                     }
@@ -799,52 +797,52 @@ struct CommentsView: View {
                 }
                 
                 // Reply Input (if replying)
-                if let parentComment = replyingTo {
-                    VStack(spacing: 8) {
-                        HStack {
-                            Text("Replying to \(parentComment.authorName)")
-                                .font(.system(size: 12))
-                                .foregroundColor(.gray)
-                            Spacer()
-                            Button("Cancel") {
-                                replyingTo = nil
-                                replyText = ""
-                                isReplyFieldFocused = false
-                            }
-                            .font(.system(size: 12))
-                            .foregroundColor(.blue)
-                        }
-                        .padding(.horizontal, 16)
-                        
-                        HStack(spacing: 12) {
-                            TextField("Write a reply...", text: $replyText, axis: .vertical)
-                                .textFieldStyle(.roundedBorder)
-                                .lineLimit(1...4)
-                                .focused($isReplyFieldFocused)
-                            
-                            Button(action: {
-                                if !replyText.trimmingCharacters(in: .whitespaces).isEmpty {
-                                    commentsViewModel.addReply(to: parentComment.id, content: replyText)
-                                    replyText = ""
-                                    replyingTo = nil
-                                    isReplyFieldFocused = false
-                                }
-                            }) {
-                                Text("Reply")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 10)
-                                    .background(replyText.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray : Color.pennRed)
-                                    .cornerRadius(8)
-                            }
-                            .disabled(replyText.trimmingCharacters(in: .whitespaces).isEmpty)
-                        }
-                        .padding(.horizontal, 16)
-                    }
-                    .padding(.vertical, 8)
-                    .background(Color.gray.opacity(0.05))
-                }
+//                if let parentComment = replyingTo {
+//                    VStack(spacing: 8) {
+//                        HStack {
+//                            Text("Replying to \(parentComment.authorName)")
+//                                .font(.system(size: 12))
+//                                .foregroundColor(.gray)
+//                            Spacer()
+//                            Button("Cancel") {
+//                                replyingTo = nil
+//                                replyText = ""
+//                                isReplyFieldFocused = false
+//                            }
+//                            .font(.system(size: 12))
+//                            .foregroundColor(.blue)
+//                        }
+//                        .padding(.horizontal, 16)
+//                        
+//                        HStack(spacing: 12) {
+//                            TextField("Write a reply...", text: $replyText, axis: .vertical)
+//                                .textFieldStyle(.roundedBorder)
+//                                .lineLimit(1...4)
+//                                .focused($isReplyFieldFocused)
+//                            
+//                            Button(action: {
+//                                if !replyText.trimmingCharacters(in: .whitespaces).isEmpty {
+//                                    commentsViewModel.addReply(to: parentComment.id, content: replyText)
+//                                    replyText = ""
+//                                    replyingTo = nil
+//                                    isReplyFieldFocused = false
+//                                }
+//                            }) {
+//                                Text("Reply")
+//                                    .font(.system(size: 16, weight: .semibold))
+//                                    .foregroundColor(.white)
+//                                    .padding(.horizontal, 20)
+//                                    .padding(.vertical, 10)
+//                                    .background(replyText.trimmingCharacters(in: .whitespaces).isEmpty ? Color.gray : Color.pennRed)
+//                                    .cornerRadius(8)
+//                            }
+//                            .disabled(replyText.trimmingCharacters(in: .whitespaces).isEmpty)
+//                        }
+//                        .padding(.horizontal, 16)
+//                    }
+//                    .padding(.vertical, 8)
+//                    .background(Color.gray.opacity(0.05))
+//                }
                 
                 // Comment Input
                 HStack(spacing: 12) {
@@ -887,19 +885,19 @@ struct CommentsView: View {
 struct CommentRowView: View {
     let comment: Comment
     @ObservedObject var commentsViewModel: CommentsViewModel
-    var isReply: Bool = false
-    var onReply: ((Comment) -> Void)?
+//    var isReply: Bool = false
+//    var onReply: ((Comment) -> Void)?
     @State private var isLiked = false
     @State private var isDisliked = false
     @State private var likeCount: Int
     @State private var dislikeCount: Int
     @State private var showDeleteAlert = false
     
-    init(comment: Comment, commentsViewModel: CommentsViewModel, isReply: Bool = false, onReply: ((Comment) -> Void)? = nil) {
+    init(comment: Comment, commentsViewModel: CommentsViewModel/*, isReply: Bool = false, onReply: ((Comment) -> Void)? = nil*/) {
         self.comment = comment
         self.commentsViewModel = commentsViewModel
-        self.isReply = isReply
-        self.onReply = onReply
+//        self.isReply = isReply
+//        self.onReply = onReply
         _isLiked = State(initialValue: comment.isLiked)
         _isDisliked = State(initialValue: comment.isDisliked)
         _likeCount = State(initialValue: comment.likes)
@@ -955,15 +953,15 @@ struct CommentRowView: View {
                         .font(.system(size: 12))
                         .foregroundColor(.gray)
                     
-                    if !isReply, let onReply = onReply {
-                        Button(action: {
-                            onReply(comment)
-                        }) {
-                            Text("Reply")
-                                .font(.system(size: 12))
-                                .foregroundColor(.blue)
-                        }
-                    }
+//                    if !isReply, let onReply = onReply {
+//                        Button(action: {
+//                            onReply(comment)
+//                        }) {
+//                            Text("Reply")
+//                                .font(.system(size: 12))
+//                                .foregroundColor(.blue)
+//                        }
+//                    }
                     
                     if canDelete {
                         Button(action: {

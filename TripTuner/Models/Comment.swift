@@ -20,8 +20,9 @@ struct Comment: Identifiable, Codable {
     var createdAt: Date
     var isLiked: Bool
     var isDisliked: Bool
-    var replies: [Comment]
-    var parentCommentID: String?
+
+    //var replies: [Comment]
+    //var parentCommentID: String?
     
     init(id: String = UUID().uuidString,
          authorID: String,
@@ -34,9 +35,9 @@ struct Comment: Identifiable, Codable {
          dislikes: Int = 0,
          createdAt: Date = Date(),
          isLiked: Bool = false,
-         isDisliked: Bool = false,
-         replies: [Comment] = [],
-         parentCommentID: String? = nil) {
+        isDisliked: Bool = false) {
+         //replies: [Comment] = [],
+         //parentCommentID: String? = nil) {
         self.id = id
         self.authorID = authorID
         self.authorName = authorName
@@ -49,8 +50,8 @@ struct Comment: Identifiable, Codable {
         self.createdAt = createdAt
         self.isLiked = isLiked
         self.isDisliked = isDisliked
-        self.replies = replies
-        self.parentCommentID = parentCommentID
+//        self.replies = replies
+//        self.parentCommentID = parentCommentID
     }
 }
 

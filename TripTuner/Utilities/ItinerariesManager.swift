@@ -323,8 +323,9 @@ class ItinerariesManager: ObservableObject {
         let costLevel = costLevelString.flatMap { CostLevel(rawValue: $0) }
         let noiseLevelInt = data["noiseLevel"] as? Int
         let noiseLevel = noiseLevelInt.flatMap { NoiseLevel(rawValue: $0) }
-        let regionString = data["region"] as? String
-        let region = regionString.flatMap { PhiladelphiaRegion(rawValue: $0) }
+        let regionString = data["region"] as? String ?? ""
+        let region = PhiladelphiaRegion(rawValue: regionString)
+
         
         return Itinerary(
             id: id,

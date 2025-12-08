@@ -219,9 +219,11 @@ struct ProfileView: View {
                 .padding(.top, 20)
             
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                ForEach(MockData.achievements) { achievement in
-                    AchievementBadge(achievement: achievement) {
-                        viewModel.selectedAchievement = achievement
+                if let achievements = viewModel.user?.achievements {
+                    ForEach(achievements) { achievement in
+                        AchievementBadge(achievement: achievement) {
+                            viewModel.selectedAchievement = achievement
+                        }
                     }
                 }
             }

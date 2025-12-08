@@ -21,7 +21,7 @@ enum TimeEstimate: String, Codable, CaseIterable {
     var emoji: String {
         switch self {
         case .any: return "⏱️"
-        case .short: return "⏰"
+        case .short: return "🕐"
         case .medium: return "🕐"
         case .long: return "🕑"
         case .veryLong: return "🕒"
