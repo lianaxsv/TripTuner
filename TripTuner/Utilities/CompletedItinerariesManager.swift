@@ -79,6 +79,33 @@ class CompletedItinerariesManager: ObservableObject {
         }
     }
     
+    func unmarkCompleted(_ itineraryID: String) {
+        guard let userID = Auth.auth().currentUser?.uid else {
+            return
+        }
+        
+        let completedRef = db.collection("users").document(userID)
+            .collection("completedItineraries").document(itineraryID)
+        
+        completedRef.delete { error in
+            if let error = error {
+                print("Error unmarking as completed: \(error.localizedDescription)")
+            } else {
+                DispatchQueue.main.async {
+                    self.completedItineraryIDs.remove(itineraryID)
+                }
+            }
+        }
+    }
+    
+    func toggleCompleted(_ itineraryID: String) {
+        if isCompleted(itineraryID) {
+            unmarkCompleted(itineraryID)
+        } else {
+            markCompleted(itineraryID)
+        }
+    }
+    
     func reloadCompletedItineraries() {
         loadCompletedItineraries()
     }

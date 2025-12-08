@@ -7,6 +7,7 @@
 
 import Foundation
 import SwiftUI
+import Combine
 import FirebaseFirestore
 import FirebaseAuth
 
@@ -18,6 +19,7 @@ class ProfileViewModel: ObservableObject {
     @Published var milesTraveled: Double = 0
     @Published var neighborhoodsExplored: Int = 0
     @Published var tripsCompleted: Int = 0
+    @Published var categoriesExplored: Int = 0
     @Published var isLoading = false
     @Published var profileImage: UIImage?
     @Published var profileImageURL: String?
@@ -31,13 +33,34 @@ class ProfileViewModel: ObservableObject {
     private let itinerariesManager = ItinerariesManager.shared
     private let db = Firestore.firestore()
     private var authViewModel: AuthViewModel
+    private var cancellables = Set<AnyCancellable>()
     
     init(authViewModel: AuthViewModel) {
             self.authViewModel = authViewModel
             self.user = authViewModel.currentUser
             loadUserData()
             loadProfileImage()
+            observeCompletedItineraries()
         }
+    
+    private func observeCompletedItineraries() {
+        // Observe changes to completed itineraries and update stats automatically
+        completedManager.$completedItineraryIDs
+            .dropFirst() // Skip initial value
+            .sink { [weak self] _ in
+                self?.updateStatsFromCompletedItineraries()
+            }
+            .store(in: &cancellables)
+    }
+    
+    private func updateStatsFromCompletedItineraries() {
+        // Update stats immediately when completed itineraries change
+        self.completedItineraries = self.completedManager.getCompletedItineraries(from: self.itinerariesManager.itineraries)
+        self.tripsCompleted = self.completedItineraries.count
+        self.updateNeighborhoodStats()
+        self.updateCategoryStats()
+        self.updateAchievements()
+    }
     
     func loadUserData() {
         isLoading = true
@@ -46,6 +69,7 @@ class ProfileViewModel: ObservableObject {
             self.savedItineraries = self.savedManager.getSavedItineraries(from: self.itinerariesManager.itineraries)
             self.tripsCompleted = self.completedItineraries.count
             self.updateNeighborhoodStats()
+            self.updateCategoryStats()
             self.updateAchievements()
             self.isLoading = false
         }
@@ -72,6 +96,15 @@ class ProfileViewModel: ObservableObject {
 
         print("DEBUG — Unique:", unique)
         print("DEBUG — Count:", neighborhoodsExplored)
+    }
+    
+    private func updateCategoryStats() {
+        let categories = completedItineraries
+            .map { $0.category }
+            .filter { $0 != .all } // Exclude "all" category
+        
+        let uniqueCategories = Set(categories)
+        categoriesExplored = uniqueCategories.count
     }
 
     

@@ -23,6 +23,8 @@ class LeaderboardViewModel: ObservableObject {
     
     private let itinerariesManager = ItinerariesManager.shared
     private var cancellables = Set<AnyCancellable>()
+    // Cache profile pictures to persist across leaderboard updates
+    private var profilePictureCache: [String: String] = [:]
     
     init() {
         loadLeaderboard()
@@ -60,6 +62,14 @@ class LeaderboardViewModel: ObservableObject {
     
     func loadLeaderboard() {
         isLoading = true
+        
+        // CRITICAL: Preserve ALL profile pictures from existing entries FIRST before recreating
+        // This ensures profile pictures are never lost during updates
+        for entry in self.entries {
+            if let profileImageURL = entry.user.profileImageURL, !profileImageURL.isEmpty {
+                profilePictureCache[entry.user.id] = profileImageURL
+            }
+        }
         
         // Calculate points from upvotes on itineraries
         var userPoints: [String: Int] = [:] // userID -> total upvotes
@@ -100,6 +110,9 @@ class LeaderboardViewModel: ObservableObject {
         // Process users from itineraries
         for (userId, points) in userPoints {
             if let info = userInfo[userId] {
+                // Use cached profile picture if available
+                let cachedProfileImageURL = profilePictureCache[userId]
+                
                 // Create entry with user info from itinerary
                 let entry = LeaderboardEntry(
                     id: userId, // Use userId as ID to maintain consistency
@@ -107,6 +120,7 @@ class LeaderboardViewModel: ObservableObject {
                         id: userId,
                         name: info.name,
                         email: "",
+                        profileImageURL: cachedProfileImageURL,
                         points: points,
                         handle: info.handle
                     ),
@@ -135,7 +149,7 @@ class LeaderboardViewModel: ObservableObject {
                 return
             }
             
-            // Create a map of existing entries by userID to preserve profile pictures
+            // Create a map of existing entries by userID
             var entriesByUserID: [String: LeaderboardEntry] = [:]
             for entry in leaderboardEntries {
                 entriesByUserID[entry.user.id] = entry
@@ -149,16 +163,20 @@ class LeaderboardViewModel: ObservableObject {
                 let handle = data["handle"] as? String ?? "@user"
                 let profileImageURL = data["profileImageURL"] as? String
                 
+                // Update cache with Firestore profile picture if available (but don't overwrite existing cache if Firestore is nil)
+                if let profileImageURL = profileImageURL, !profileImageURL.isEmpty {
+                    profilePictureCache[userId] = profileImageURL
+                }
+                // If Firestore doesn't have one, keep the existing cache value (already set above)
+                
+                // ALWAYS use cached profile picture (preserved from existing entries or from Firestore)
+                let finalProfileImageURL = profilePictureCache[userId]
+                
                 if var existingEntry = entriesByUserID[userId] {
                     // Update existing entry with profile picture while preserving other data
                     var user = existingEntry.user
-                    // Always update profile picture if we have one from Firestore
-                    if let profileImageURL = profileImageURL, !profileImageURL.isEmpty {
-                        user.profileImageURL = profileImageURL
-                    } else if user.profileImageURL == nil || user.profileImageURL?.isEmpty == true {
-                        // Keep existing profile picture if Firestore doesn't have one
-                        // Don't overwrite with nil
-                    }
+                    // ALWAYS use cached profile picture - never set to nil
+                    user.profileImageURL = finalProfileImageURL
                     user.name = name // Update name in case it changed
                     user.handle = handle // Update handle in case it changed
                     existingEntry.user = user
@@ -169,7 +187,7 @@ class LeaderboardViewModel: ObservableObject {
                         id: userId,
                         name: name,
                         email: data["email"] as? String ?? "",
-                        profileImageURL: (profileImageURL?.isEmpty == false) ? profileImageURL : nil,
+                        profileImageURL: finalProfileImageURL, // Use cached profile picture
                         year: data["year"] as? String,
                         streak: data["streak"] as? Int ?? 0,
                         points: 0,
@@ -190,9 +208,10 @@ class LeaderboardViewModel: ObservableObject {
             let allEntries = Array(entriesByUserID.values)
             self.finalizeLeaderboard(allEntries)
             
-            // After finalizing, ensure profile pictures are loaded
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                self.loadProfilePictures()
+            // After finalizing, fetch fresh profile pictures from Firestore in background
+            // This updates the cache for future updates, but doesn't overwrite existing ones
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                self.loadProfilePictures(forceRefresh: false) // Don't force refresh to preserve existing
             }
         }
     }
@@ -202,19 +221,30 @@ class LeaderboardViewModel: ObservableObject {
         var sortedEntries = leaderboardEntries
         sortedEntries.sort { $0.points > $1.points }
         
-        // Preserve profile pictures from existing entries (only if new entry doesn't have one)
-        let existingEntriesByID = Dictionary(uniqueKeysWithValues: self.entries.map { ($0.user.id, $0) })
-        
+        // CRITICAL: Always ensure profile pictures are set from cache before displaying
         for (index, _) in sortedEntries.enumerated() {
             sortedEntries[index].rank = index + 1
             
-            // Preserve profile picture if new entry doesn't have one but existing entry does
+            // ALWAYS use cached profile picture - never leave it as nil
             let userId = sortedEntries[index].user.id
-            if sortedEntries[index].user.profileImageURL == nil || sortedEntries[index].user.profileImageURL?.isEmpty == true {
-                if let existingEntry = existingEntriesByID[userId],
-                   let existingProfileImageURL = existingEntry.user.profileImageURL,
-                   !existingProfileImageURL.isEmpty {
-                    sortedEntries[index].user.profileImageURL = existingProfileImageURL
+            if let cachedProfileImageURL = profilePictureCache[userId], !cachedProfileImageURL.isEmpty {
+                sortedEntries[index].user.profileImageURL = cachedProfileImageURL
+            } else {
+                // If cache doesn't have it, preserve from current entry if it exists
+                // This should rarely happen, but ensures we never lose profile pictures
+                if sortedEntries[index].user.profileImageURL == nil || sortedEntries[index].user.profileImageURL?.isEmpty == true {
+                    // Try to get from existing entries
+                    if let existingEntry = self.entries.first(where: { $0.user.id == userId }),
+                       let existingProfileImageURL = existingEntry.user.profileImageURL,
+                       !existingProfileImageURL.isEmpty {
+                        sortedEntries[index].user.profileImageURL = existingProfileImageURL
+                        profilePictureCache[userId] = existingProfileImageURL
+                    }
+                } else {
+                    // If entry already has a profile picture, cache it
+                    if let profileImageURL = sortedEntries[index].user.profileImageURL {
+                        profilePictureCache[userId] = profileImageURL
+                    }
                 }
             }
         }
@@ -229,7 +259,7 @@ class LeaderboardViewModel: ObservableObject {
         loadLeaderboard()
     }
     
-    func loadProfilePictures() {
+    func loadProfilePictures(forceRefresh: Bool = false) {
         // Load profile pictures for all current entries
         guard !entries.isEmpty else { return }
         
@@ -259,15 +289,29 @@ class LeaderboardViewModel: ObservableObject {
         }
         
         group.notify(queue: .main) {
-            // Update entries with profile pictures
+            // Update cache and entries with profile pictures
             var updatedEntries = self.entries
+            
             for index in updatedEntries.indices {
                 let userID = updatedEntries[index].user.id
-                if let profileImageURL = profilePictures[userID] {
+                
+                if let profileImageURL = profilePictures[userID], !profileImageURL.isEmpty {
+                    // Always update cache with fresh data from Firestore
+                    self.profilePictureCache[userID] = profileImageURL
+                    // Always update entry with fresh profile picture
                     updatedEntries[index].user.profileImageURL = profileImageURL
+                } else if !forceRefresh {
+                    // Only use cache if not forcing refresh and Firestore doesn't have one
+                    if let cachedProfileImageURL = self.profilePictureCache[userID], !cachedProfileImageURL.isEmpty {
+                        updatedEntries[index].user.profileImageURL = cachedProfileImageURL
+                    }
                 }
             }
-            self.entries = updatedEntries
+            
+            // Only update if we have changes or if forcing refresh
+            if forceRefresh || profilePictures.count > 0 {
+                self.entries = updatedEntries
+            }
         }
     }
 }

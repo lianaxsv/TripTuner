@@ -27,7 +27,7 @@ struct ProfileView: View {
         ScrollView {
             VStack(spacing: 0) {
                 profileHeader
-                novemberWrapped
+                monthlyWrapped
                 achievementsSection
                 neighborhoodsSection
                 myItinerariesSection
@@ -183,13 +183,17 @@ struct ProfileView: View {
 
     
     
-    // MARK: - November Wrapped
-    private var novemberWrapped: some View {
-        VStack(alignment: .leading, spacing: 16) {
+    // MARK: - Monthly Wrapped
+    private var monthlyWrapped: some View {
+        let monthFormatter = DateFormatter()
+        monthFormatter.dateFormat = "MMMM"
+        let monthName = monthFormatter.string(from: Date())
+        
+        return VStack(alignment: .leading, spacing: 16) {
             HStack {
                 Image(systemName: "calendar")
                     .foregroundColor(.pennRed)
-                Text("November Wrapped")
+                Text("\(monthName) Wrapped")
                     .font(.system(size: 20, weight: .bold))
                 Spacer()
             }
@@ -197,7 +201,7 @@ struct ProfileView: View {
             .padding(.top, 20)
             
             HStack(spacing: 20) {
-                StatTile(icon: "chart.line.uptrend.xyaxis", value: "\(viewModel.milesTraveled)", label: "miles traveled", color: .pennRed)
+                StatTile(icon: "tag.fill", value: "\(viewModel.categoriesExplored)", label: "categories", color: .pennRed)
                 StatTile(icon: "mappin", value: "\(viewModel.neighborhoodsExplored)", label: "neighborhoods", color: .pennBlue)
                 StatTile(icon: "target", value: "\(viewModel.tripsCompleted)", label: "trips done", color: .pennRed)
             }
@@ -295,13 +299,20 @@ struct ProfileView: View {
     }
     
     private var completedItinerariesGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 2) {
+        let columns = [
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8)
+        ]
+        
+        return LazyVGrid(columns: columns, spacing: 8) {
             ForEach(viewModel.completedItineraries) { itinerary in
                 Button(action: {
                     selectedItinerary = itinerary
                 }) {
                     ItineraryGridItem(itinerary: itinerary, gradientColors: [Color.green.opacity(0.6), Color.pennBlue.opacity(0.6)])
                 }
+                .buttonStyle(PlainButtonStyle())
             }
         }
         .padding(.horizontal, 20)
@@ -342,13 +353,20 @@ struct ProfileView: View {
     }
     
     private var savedItinerariesGrid: some View {
-        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 2) {
+        let columns = [
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8)
+        ]
+        
+        return LazyVGrid(columns: columns, spacing: 8) {
             ForEach(viewModel.savedItineraries) { itinerary in
                 Button(action: {
                     selectedItinerary = itinerary
                 }) {
                     ItineraryGridItem(itinerary: itinerary, gradientColors: [Color.pennBlue.opacity(0.6), Color.pennRed.opacity(0.6)])
                 }
+                .buttonStyle(PlainButtonStyle())
             }
         }
         .padding(.horizontal, 20)
@@ -497,45 +515,26 @@ struct ItineraryGridItem: View {
     let gradientColors: [Color]
     
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(
-                    LinearGradient(
-                        colors: gradientColors,
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+        GeometryReader { geometry in
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        LinearGradient(
+                            colors: gradientColors,
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
-                )
-                .aspectRatio(1, contentMode: .fit)
-            
-            // Show photo if available, otherwise show emoji
-            if let firstPhotoURL = itinerary.photos.first, !firstPhotoURL.isEmpty,
-               let url = URL(string: firstPhotoURL) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
-                        VStack {
-                            Text(itinerary.category.emoji)
-                                .font(.system(size: 30))
-                            Text(itinerary.title)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.center)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .padding(.horizontal, 4)
-                        }
-                    case .success(let image):
-                        ZStack(alignment: .bottom) {
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .clipped()
-                            
-                            // Title overlay
-                            VStack {
-                                Spacer()
+                
+                // Show photo if available, otherwise show emoji
+                if let firstPhotoURL = itinerary.photos.first, !firstPhotoURL.isEmpty,
+                   let url = URL(string: firstPhotoURL) {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .empty:
+                            VStack(spacing: 4) {
+                                Text(itinerary.category.emoji)
+                                    .font(.system(size: 30))
                                 Text(itinerary.title)
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundColor(.white)
@@ -543,57 +542,79 @@ struct ItineraryGridItem: View {
                                     .lineLimit(1)
                                     .truncationMode(.tail)
                                     .padding(.horizontal, 4)
-                                    .padding(.bottom, 4)
-                                    .frame(maxWidth: .infinity)
-                                    .background(
-                                        LinearGradient(
-                                            colors: [Color.black.opacity(0.6), Color.clear],
-                                            startPoint: .bottom,
-                                            endPoint: .top
+                            }
+                        case .success(let image):
+                            ZStack(alignment: .bottom) {
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: geometry.size.width, height: geometry.size.height)
+                                    .clipped()
+                                
+                                // Title overlay
+                                VStack {
+                                    Spacer()
+                                    Text(itinerary.title)
+                                        .font(.system(size: 10, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .multilineTextAlignment(.center)
+                                        .lineLimit(1)
+                                        .truncationMode(.tail)
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 6)
+                                        .frame(maxWidth: .infinity)
+                                        .background(
+                                            LinearGradient(
+                                                colors: [Color.black.opacity(0.7), Color.clear],
+                                                startPoint: .bottom,
+                                                endPoint: .top
+                                            )
                                         )
-                                    )
+                                }
+                            }
+                        case .failure:
+                            VStack(spacing: 4) {
+                                Text(itinerary.category.emoji)
+                                    .font(.system(size: 30))
+                                Text(itinerary.title)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .padding(.horizontal, 4)
+                            }
+                        @unknown default:
+                            VStack(spacing: 4) {
+                                Text(itinerary.category.emoji)
+                                    .font(.system(size: 30))
+                                Text(itinerary.title)
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .multilineTextAlignment(.center)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                    .padding(.horizontal, 4)
                             }
                         }
-                    case .failure:
-                        VStack {
-                            Text(itinerary.category.emoji)
-                                .font(.system(size: 30))
-                            Text(itinerary.title)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.center)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .padding(.horizontal, 4)
-                        }
-                    @unknown default:
-                        VStack {
-                            Text(itinerary.category.emoji)
-                                .font(.system(size: 30))
-                            Text(itinerary.title)
-                                .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.white)
-                                .multilineTextAlignment(.center)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                                .padding(.horizontal, 4)
-                        }
+                    }
+                } else {
+                    VStack(spacing: 4) {
+                        Text(itinerary.category.emoji)
+                            .font(.system(size: 30))
+                        Text(itinerary.title)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .padding(.horizontal, 4)
                     }
                 }
-            } else {
-                VStack {
-                    Text(itinerary.category.emoji)
-                        .font(.system(size: 30))
-                    Text(itinerary.title)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .padding(.horizontal, 4)
-                }
             }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
         }
+        .aspectRatio(1, contentMode: .fit)
     }
 }
 

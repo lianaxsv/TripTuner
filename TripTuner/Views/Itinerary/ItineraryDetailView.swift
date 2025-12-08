@@ -331,9 +331,7 @@ struct ItineraryDetailView: View {
                     
                     // I Did This Trip Button
                     Button(action: {
-                        if !isCompleted {
-                            completedManager.markCompleted(itinerary.id)
-                        }
+                        completedManager.toggleCompleted(itinerary.id)
                     }) {
                         Text(isCompleted ? "✓ Completed This Trip!" : "I Did This Trip!")
                             .font(.system(size: 18, weight: .semibold))
@@ -459,18 +457,56 @@ class CommentsViewModel: ObservableObject {
                         return
                     }
                     
+                    // Preserve existing vote states for current user
+                    let existingCommentsByID = Dictionary(uniqueKeysWithValues: self.comments.map { ($0.id, $0) })
+                    
                     var loadedComments: [Comment] = []
+                    let group = DispatchGroup()
+                    
+                    guard let currentUserID = Auth.auth().currentUser?.uid else {
+                        // If no user, just load comments without vote states
+                        for document in documents {
+                            if let comment = self.commentFromFirestore(document) {
+                                loadedComments.append(comment)
+                            }
+                        }
+                        self.comments = loadedComments
+                        return
+                    }
                     
                     for document in documents {
                         if let comment = self.commentFromFirestore(document) {
-                            loadedComments.append(comment)
+                            var commentWithVote = comment
                             
-                            // Set up real-time listener for replies
-//                            self.setupReplyListener(for: comment.id)
+                            // CRITICAL: Always use score from Firestore (shared across all users)
+                            // The score in commentFromFirestore is already from Firestore - never override it
+                            
+                            // Preserve only the user's personal vote state (isLiked/isDisliked)
+                            if let existingComment = existingCommentsByID[comment.id] {
+                                commentWithVote.isLiked = existingComment.isLiked
+                                commentWithVote.isDisliked = existingComment.isDisliked
+                                // Score MUST come from Firestore (already set correctly in commentFromFirestore)
+                                // Do NOT use existingComment.score - always use the score from Firestore
+                                loadedComments.append(commentWithVote)
+                            } else {
+                                // Load vote state for new comment
+                                group.enter()
+                                self.loadUserVoteForComment(commentID: comment.id, userID: currentUserID) { isLiked, isDisliked in
+                                    commentWithVote.isLiked = isLiked
+                                    commentWithVote.isDisliked = isDisliked
+                                    // Score from Firestore (already set in commentFromFirestore) - this is the source of truth
+                                    loadedComments.append(commentWithVote)
+                                    group.leave()
+                                }
+                            }
                         }
                     }
                     
-                    self.comments = loadedComments
+                    group.notify(queue: .main) {
+                        // Sort loaded comments to maintain order
+                        let sortedComments = loadedComments.sorted { $0.createdAt > $1.createdAt }
+                        self.comments = sortedComments
+                    }
                 }
             }
     }
@@ -580,26 +616,175 @@ class CommentsViewModel: ObservableObject {
         
         let authorProfileImageURLString = data["authorProfileImageURL"] as? String
         let authorProfileImageURL = (authorProfileImageURLString?.isEmpty == false) ? authorProfileImageURLString : nil
-        let likes = data["likes"] as? Int ?? 0
-        let dislikes = data["dislikes"] as? Int ?? 0
+        // Use score if available, otherwise calculate from likes/dislikes for backward compatibility
+        let score = data["score"] as? Int ?? ((data["likes"] as? Int ?? 0) - (data["dislikes"] as? Int ?? 0))
 //        let parentCommentID = data["parentCommentID"] as? String
         
+        let commentID = document.documentID
+        
+        // Vote states will be loaded separately in loadComments
         return Comment(
-            id: document.documentID,
+            id: commentID,
             authorID: authorID,
             authorName: authorName,
             authorHandle: authorHandle,
             authorProfileImageURL: authorProfileImageURL,
             itineraryID: itineraryID,
             content: content,
-            likes: likes,
-            dislikes: dislikes,
+            score: score,
             createdAt: createdAtTimestamp.dateValue(),
             isLiked: false,
             isDisliked: false
 //            replies: [],
 //            parentCommentID: parentCommentID
         )
+    }
+    
+    private func loadUserVoteForComment(commentID: String, userID: String, completion: @escaping (Bool, Bool) -> Void) {
+        db.collection("itineraries").document(itineraryID)
+            .collection("comments").document(commentID)
+            .collection("votes").document(userID)
+            .getDocument { snapshot, error in
+                if let data = snapshot?.data(),
+                   let voteType = data["type"] as? String {
+                    completion(voteType == "like", voteType == "dislike")
+                } else {
+                    completion(false, false)
+                }
+            }
+    }
+    
+    func toggleCommentLike(commentID: String, isCurrentlyLiked: Bool, isCurrentlyDisliked: Bool, currentScore: Int) {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        
+        let commentRef = db.collection("itineraries").document(itineraryID)
+            .collection("comments").document(commentID)
+        let voteRef = commentRef.collection("votes").document(userID)
+        
+        if isCurrentlyLiked {
+            // Unlike: remove vote (decrease score by 1)
+            voteRef.delete { error in
+                if error == nil {
+                    commentRef.updateData([
+                        "score": FieldValue.increment(Int64(-1))
+                    ]) { error in
+                        if let error = error {
+                            print("Error updating score: \(error.localizedDescription)")
+                        }
+                    }
+                } else {
+                    print("Error removing like vote: \(error!.localizedDescription)")
+                }
+            }
+        } else {
+            // Like: add/update vote
+            let voteData: [String: Any] = ["type": "like", "votedAt": FieldValue.serverTimestamp()]
+            
+            if isCurrentlyDisliked {
+                // If currently disliked, change to like (increase score by 2: +1 for like, +1 to undo dislike)
+                voteRef.setData(voteData) { error in
+                    if error == nil {
+                        commentRef.updateData([
+                            "score": FieldValue.increment(Int64(2))
+                        ]) { error in
+                            if let error = error {
+                                print("Error updating score: \(error.localizedDescription)")
+                            }
+                        }
+                    } else {
+                        print("Error setting like vote: \(error!.localizedDescription)")
+                    }
+                }
+            } else {
+                // New like (increase score by 1)
+                voteRef.setData(voteData) { error in
+                    if error == nil {
+                        commentRef.updateData([
+                            "score": FieldValue.increment(Int64(1))
+                        ]) { error in
+                            if let error = error {
+                                print("Error updating score: \(error.localizedDescription)")
+                            }
+                        }
+                    } else {
+                        print("Error setting like vote: \(error!.localizedDescription)")
+                    }
+                }
+            }
+        }
+    }
+    
+    func toggleCommentDislike(commentID: String, isCurrentlyLiked: Bool, isCurrentlyDisliked: Bool, currentScore: Int) {
+        guard let userID = Auth.auth().currentUser?.uid else { return }
+        
+        let commentRef = db.collection("itineraries").document(itineraryID)
+            .collection("comments").document(commentID)
+        let voteRef = commentRef.collection("votes").document(userID)
+        
+        if isCurrentlyDisliked {
+            // Undislike: remove vote (increase score by 1)
+            voteRef.delete { error in
+                if error == nil {
+                    commentRef.updateData([
+                        "score": FieldValue.increment(Int64(1))
+                    ]) { error in
+                        if let error = error {
+                            print("Error updating score: \(error.localizedDescription)")
+                        }
+                    }
+                } else {
+                    print("Error removing dislike vote: \(error!.localizedDescription)")
+                }
+            }
+        } else {
+            // Dislike: add/update vote
+            let voteData: [String: Any] = ["type": "dislike", "votedAt": FieldValue.serverTimestamp()]
+            
+            if isCurrentlyLiked {
+                // If currently liked, change to dislike (decrease score by 2: -1 for dislike, -1 to undo like)
+                voteRef.setData(voteData) { error in
+                    if error == nil {
+                        commentRef.updateData([
+                            "score": FieldValue.increment(Int64(-2))
+                        ]) { error in
+                            if let error = error {
+                                print("Error updating score: \(error.localizedDescription)")
+                            }
+                        }
+                    } else {
+                        print("Error setting dislike vote: \(error!.localizedDescription)")
+                    }
+                }
+            } else {
+                // New dislike (decrease score by 1)
+                voteRef.setData(voteData) { error in
+                    if error == nil {
+                        commentRef.updateData([
+                            "score": FieldValue.increment(Int64(-1))
+                        ]) { error in
+                            if let error = error {
+                                print("Error updating score: \(error.localizedDescription)")
+                            }
+                        }
+                    } else {
+                        print("Error setting dislike vote: \(error!.localizedDescription)")
+                    }
+                }
+            }
+        }
+    }
+    
+    func updateCommentVoteState(commentID: String, isLiked: Bool, isDisliked: Bool, score: Int) {
+        // Update vote state optimistically for immediate UI feedback
+        // Score will eventually be synced by real-time listener from Firestore (shared across all users)
+        // But we update it optimistically here so the UI responds immediately
+        if let index = comments.firstIndex(where: { $0.id == commentID }) {
+            var updatedComment = comments[index]
+            updatedComment.isLiked = isLiked
+            updatedComment.isDisliked = isDisliked
+            updatedComment.score = score // Update score optimistically for immediate feedback
+            comments[index] = updatedComment
+        }
     }
     
     func addComment(content: String) {
@@ -622,8 +807,7 @@ class CommentsViewModel: ObservableObject {
                 "authorProfileImageURL": authorProfileImageURL ?? NSNull(),
                 "itineraryID": self.itineraryID,
                 "content": content,
-                "likes": 0,
-                "dislikes": 0,
+                "score": 0,
                 "createdAt": FieldValue.serverTimestamp(),
 //                "parentCommentID": NSNull()
             ]
@@ -883,35 +1067,44 @@ struct CommentsView: View {
 }
 
 struct CommentRowView: View {
-    let comment: Comment
+    let commentID: String
     @ObservedObject var commentsViewModel: CommentsViewModel
-//    var isReply: Bool = false
-//    var onReply: ((Comment) -> Void)?
     @State private var isLiked = false
     @State private var isDisliked = false
-    @State private var likeCount: Int
-    @State private var dislikeCount: Int
+    @State private var score: Int = 0
     @State private var showDeleteAlert = false
+    @State private var authorName: String = ""
+    @State private var content: String = ""
+    @State private var authorProfileImageURL: String? = nil
+    @State private var createdAt: Date = Date()
+    @State private var authorID: String = ""
     
-    init(comment: Comment, commentsViewModel: CommentsViewModel/*, isReply: Bool = false, onReply: ((Comment) -> Void)? = nil*/) {
-        self.comment = comment
+    // Get the current comment from the view model (always up-to-date)
+    private var comment: Comment? {
+        commentsViewModel.comments.first(where: { $0.id == commentID })
+    }
+    
+    init(comment: Comment, commentsViewModel: CommentsViewModel) {
+        self.commentID = comment.id
         self.commentsViewModel = commentsViewModel
-//        self.isReply = isReply
-//        self.onReply = onReply
         _isLiked = State(initialValue: comment.isLiked)
         _isDisliked = State(initialValue: comment.isDisliked)
-        _likeCount = State(initialValue: comment.likes)
-        _dislikeCount = State(initialValue: comment.dislikes)
+        _score = State(initialValue: comment.score)
+        _authorName = State(initialValue: comment.authorName)
+        _content = State(initialValue: comment.content)
+        _authorProfileImageURL = State(initialValue: comment.authorProfileImageURL)
+        _createdAt = State(initialValue: comment.createdAt)
+        _authorID = State(initialValue: comment.authorID)
     }
     
-    var canDelete: Bool {
+    private var canDelete: Bool {
         guard let currentUserID = Auth.auth().currentUser?.uid else { return false }
-        return comment.authorID == currentUserID
+        return authorID == currentUserID
     }
     
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            if let profileImageURL = comment.authorProfileImageURL,
+    private var profileImageView: some View {
+        Group {
+            if let profileImageURL = authorProfileImageURL,
                !profileImageURL.isEmpty,
                let url = URL(string: profileImageURL) {
                 AsyncImage(url: url) { phase in
@@ -939,92 +1132,172 @@ struct CommentRowView: View {
                     .fill(Color.gray.opacity(0.3))
                     .frame(width: 40, height: 40)
             }
+        }
+    }
+    
+    private var commentContentView: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(authorName)
+                .font(.system(size: 14, weight: .semibold))
             
-            VStack(alignment: .leading, spacing: 4) {
-                Text(comment.authorName)
-                    .font(.system(size: 14, weight: .semibold))
-                
-                Text(comment.content)
-                    .font(.system(size: 14))
-                    .foregroundColor(.gray)
-                
-                HStack(spacing: 16) {
-                    Text(comment.createdAt, style: .relative)
-                        .font(.system(size: 12))
-                        .foregroundColor(.gray)
-                    
-//                    if !isReply, let onReply = onReply {
-//                        Button(action: {
-//                            onReply(comment)
-//                        }) {
-//                            Text("Reply")
-//                                .font(.system(size: 12))
-//                                .foregroundColor(.blue)
-//                        }
-//                    }
-                    
-                    if canDelete {
-                        Button(action: {
-                            showDeleteAlert = true
-                        }) {
-                            Text("Delete")
-                                .font(.system(size: 12))
-                                .foregroundColor(.red)
-                        }
-                    }
-                }
-                .padding(.top, 4)
-            }
+            Text(content)
+                .font(.system(size: 14))
+                .foregroundColor(.gray)
             
-            Spacer()
-            
-            VStack(spacing: 4) {
-                Button(action: {
-                    if isDisliked {
-                        isDisliked = false
-                        likeCount += 1 // Restore the like count
-                    }
-                    isLiked.toggle()
-                    if isLiked {
-                        likeCount += 1
-                    } else {
-                        likeCount -= 1 // Allow negatives
-                    }
-                }) {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 12))
-                        .foregroundColor(isLiked ? .pennRed : .gray)
-                }
-                Text("\(likeCount)")
+            HStack(spacing: 16) {
+                Text(createdAt, style: .relative)
                     .font(.system(size: 12))
                     .foregroundColor(.gray)
-                Button(action: {
-                    if isLiked {
-                        isLiked = false
-                        likeCount -= 1
+                
+                if canDelete {
+                    Button(action: {
+                        showDeleteAlert = true
+                    }) {
+                        Text("Delete")
+                            .font(.system(size: 12))
+                            .foregroundColor(.red)
                     }
-                    isDisliked.toggle()
-                    if isDisliked {
-                        likeCount -= 1 // Decrease count, allow negatives
-                    } else {
-                        likeCount += 1 // Restore when un-downvoting
-                    }
-                }) {
-                    Image(systemName: "arrow.down")
-                        .font(.system(size: 12))
-                        .foregroundColor(isDisliked ? .blue : .gray)
                 }
             }
+            .padding(.top, 4)
+        }
+    }
+    
+    private var votingButtons: some View {
+        VStack(spacing: 4) {
+            Button(action: {
+                handleUpvote()
+            }) {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 12))
+                    .foregroundColor(isLiked ? .pennRed : .gray)
+            }
+            Text("\(score)")
+                .font(.system(size: 12))
+                .foregroundColor(.gray)
+            Button(action: {
+                handleDownvote()
+            }) {
+                Image(systemName: "arrow.down")
+                    .font(.system(size: 12))
+                    .foregroundColor(isDisliked ? .blue : .gray)
+            }
+        }
+    }
+    
+    private func handleUpvote() {
+        let wasLiked = isLiked
+        let wasDisliked = isDisliked
+        
+        // Update local vote state immediately for UI responsiveness
+        if isDisliked {
+            isDisliked = false
+            score += 1 // Undo dislike
+        }
+        isLiked.toggle()
+        
+        // Update score optimistically for immediate feedback
+        if isLiked {
+            score += 1 // Add like
+        } else {
+            score -= 1 // Remove like
+        }
+        
+        // Save to Firestore - real-time listener will sync with other users
+        commentsViewModel.toggleCommentLike(
+            commentID: commentID,
+            isCurrentlyLiked: wasLiked,
+            isCurrentlyDisliked: wasDisliked,
+            currentScore: score
+        )
+        
+        // Update comment vote state in view model
+        commentsViewModel.updateCommentVoteState(
+            commentID: commentID,
+            isLiked: isLiked,
+            isDisliked: isDisliked,
+            score: score
+        )
+    }
+    
+    private func handleDownvote() {
+        let wasLiked = isLiked
+        let wasDisliked = isDisliked
+        
+        // Update local vote state immediately for UI responsiveness
+        if isLiked {
+            isLiked = false
+            score -= 1 // Undo like
+        }
+        isDisliked.toggle()
+        
+        // Update score optimistically for immediate feedback
+        if isDisliked {
+            score -= 1 // Add dislike
+        } else {
+            score += 1 // Remove dislike
+        }
+        
+        // Save to Firestore - real-time listener will sync with other users
+        commentsViewModel.toggleCommentDislike(
+            commentID: commentID,
+            isCurrentlyLiked: wasLiked,
+            isCurrentlyDisliked: wasDisliked,
+            currentScore: score
+        )
+        
+        // Update comment vote state in view model
+        commentsViewModel.updateCommentVoteState(
+            commentID: commentID,
+            isLiked: isLiked,
+            isDisliked: isDisliked,
+            score: score
+        )
+    }
+    
+    private func updateFromComment(_ comment: Comment) {
+        score = comment.score
+        isLiked = comment.isLiked
+        isDisliked = comment.isDisliked
+        authorName = comment.authorName
+        content = comment.content
+        authorProfileImageURL = comment.authorProfileImageURL
+        createdAt = comment.createdAt
+        authorID = comment.authorID
+    }
+    
+    private var mainContentView: some View {
+        HStack(alignment: .top, spacing: 12) {
+            profileImageView
+            commentContentView
+            Spacer()
+            votingButtons
         }
         .padding(.vertical, 8)
-        .alert("Delete Comment", isPresented: $showDeleteAlert) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
-                commentsViewModel.deleteComment(comment.id)
+    }
+    
+    var body: some View {
+        mainContentView
+            .onChange(of: commentsViewModel.comments) { _, newValue in
+                if let updatedComment = newValue.first(where: { $0.id == commentID }) {
+                    // Always sync from view model - it has the most up-to-date state
+                    // (either optimistic or from Firestore real-time listener)
+                    updateFromComment(updatedComment)
+                }
             }
-        } message: {
-            Text("Are you sure you want to delete this comment?")
-        }
+            .onAppear {
+                if let initialComment = comment {
+                    updateFromComment(initialComment)
+                }
+            }
+            .alert("Delete Comment", isPresented: $showDeleteAlert) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    commentsViewModel.deleteComment(commentID)
+                }
+            } message: {
+                Text("Are you sure you want to delete this comment?")
+            }
     }
 }
 

@@ -130,8 +130,8 @@ struct LeaderboardView: View {
             }
         
         .onAppear {
-            // Always load profile pictures when view appears
-            viewModel.loadProfilePictures()
+            // Always fetch fresh profile pictures from Firestore when view appears
+            viewModel.loadProfilePictures(forceRefresh: true)
         }
     }
 }

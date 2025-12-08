@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct Comment: Identifiable, Codable {
+struct Comment: Identifiable, Codable, Equatable {
     let id: String
     var authorID: String
     var authorName: String
@@ -15,8 +15,7 @@ struct Comment: Identifiable, Codable {
     var authorProfileImageURL: String?
     var itineraryID: String
     var content: String
-    var likes: Int
-    var dislikes: Int
+    var score: Int  // Single score: upvote +1, downvote -1
     var createdAt: Date
     var isLiked: Bool
     var isDisliked: Bool
@@ -31,8 +30,7 @@ struct Comment: Identifiable, Codable {
          authorProfileImageURL: String? = nil,
          itineraryID: String,
          content: String,
-         likes: Int = 0,
-         dislikes: Int = 0,
+         score: Int = 0,
          createdAt: Date = Date(),
          isLiked: Bool = false,
         isDisliked: Bool = false) {
@@ -45,8 +43,7 @@ struct Comment: Identifiable, Codable {
         self.authorProfileImageURL = authorProfileImageURL
         self.itineraryID = itineraryID
         self.content = content
-        self.likes = likes
-        self.dislikes = dislikes
+        self.score = score
         self.createdAt = createdAt
         self.isLiked = isLiked
         self.isDisliked = isDisliked
