@@ -669,16 +669,50 @@ class AuthViewModel: ObservableObject {
                 group.enter()
                 self.db.collection("itineraries").document(itineraryID)
                     .collection("comments")
-                    .getDocuments { snapshot, _ in
+                    .getDocuments { snapshot, error in
+                        guard let commentDocs = snapshot?.documents else {
+                            group.leave()
+                            return
+                        }
+                        
                         let commentGroup = DispatchGroup()
                         
-                        snapshot?.documents.forEach { commentDoc in
+                        for commentDoc in commentDocs {
                             commentGroup.enter()
-                            // Delete user's vote on this comment
-                            self.db.collection("itineraries").document(itineraryID)
-                                .collection("comments").document(commentDoc.documentID)
-                                .collection("votes").document(userID)
-                                .delete { _ in commentGroup.leave() }
+                            let commentID = commentDoc.documentID
+                            let commentRef = self.db.collection("itineraries").document(itineraryID)
+                                .collection("comments").document(commentID)
+                            let voteRef = commentRef.collection("votes").document(userID)
+                            
+                            // First, get the vote to check its type
+                            voteRef.getDocument { snapshot, error in
+                                guard let voteData = snapshot?.data(),
+                                      let voteType = voteData["type"] as? String else {
+                                    // No vote exists, nothing to delete
+                                    commentGroup.leave()
+                                    return
+                                }
+                                
+                                // Update comment score based on vote type
+                                let scoreChange: Int64 = (voteType == "like") ? -1 : 1
+                                
+                                // Update the comment score
+                                commentRef.updateData([
+                                    "score": FieldValue.increment(scoreChange)
+                                ]) { error in
+                                    if let error = error {
+                                        print("❌ Error updating comment score for \(commentID): \(error.localizedDescription)")
+                                    }
+                                    
+                                    // Then delete the vote
+                                    voteRef.delete { error in
+                                        if let error = error {
+                                            print("❌ Error deleting vote for comment \(commentID): \(error.localizedDescription)")
+                                        }
+                                        commentGroup.leave()
+                                    }
+                                }
+                            }
                         }
                         
                         commentGroup.notify(queue: .main) {
@@ -688,6 +722,7 @@ class AuthViewModel: ObservableObject {
             }
             
             group.notify(queue: .main) {
+                print("✅ All user comment votes deleted and scores updated")
                 completion()
             }
         }
