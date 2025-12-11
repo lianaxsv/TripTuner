@@ -20,6 +20,12 @@ class HomeViewModel: ObservableObject {
     @Published var selectedNoiseLevel: NoiseLevel?
     @Published var selectedTimeEstimate: TimeEstimate?
     @Published var selectedItinerary: Itinerary?
+    // Default Philadelphia region - always reset to this
+    private let defaultRegion = MKCoordinateRegion(
+        center: CLLocationCoordinate2D(latitude: 39.9526, longitude: -75.1652), // Philadelphia
+        span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
+    )
+    
     @Published var cameraPosition: MapCameraPosition = .region(
         MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 39.9526, longitude: -75.1652), // Philadelphia
@@ -28,7 +34,14 @@ class HomeViewModel: ObservableObject {
     )
     @Published var searchText = ""
     @Published var isLoading = false
-    @Published var isMapExpanded = false
+    @Published var isMapExpanded = false {
+        didSet {
+            // When map is collapsed (exited), reset to default position
+            if !isMapExpanded {
+                resetMapToDefault()
+            }
+        }
+    }
     
     private var cancellables = Set<AnyCancellable>()
     
@@ -117,6 +130,11 @@ class HomeViewModel: ObservableObject {
     func toggleMapExpansion() {
         // Don't reset filters when collapsing - keep them active
         isMapExpanded.toggle()
+    }
+    
+    func resetMapToDefault() {
+        // Always reset map to default Philadelphia region
+        cameraPosition = .region(defaultRegion)
     }
     
     func clearAllFilters() {

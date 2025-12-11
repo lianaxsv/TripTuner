@@ -351,6 +351,10 @@ struct HomeView: View {
                 }
             }
         }
+        .onAppear {
+            // Reset map to default when expanded map appears
+            viewModel.resetMapToDefault()
+        }
         .sheet(isPresented: $showFilterSheet) {
             FilterSheetView(viewModel: viewModel)
         }
