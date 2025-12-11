@@ -181,6 +181,106 @@ class ItinerariesManager: ObservableObject {
         }
     }
     
+    func deleteItinerary(_ itineraryID: String, completion: @escaping (Bool, Error?) -> Void) {
+        guard let userID = Auth.auth().currentUser?.uid else {
+            completion(false, NSError(domain: "ItinerariesManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"]))
+            return
+        }
+        
+        print("🗑️ Starting deletion of itinerary: \(itineraryID)")
+        
+        // Step 1: Delete all comments and their votes
+        db.collection("itineraries").document(itineraryID)
+            .collection("comments")
+            .getDocuments { [weak self] snapshot, error in
+                guard let self = self else {
+                    completion(false, NSError(domain: "ItinerariesManager", code: -1, userInfo: [NSLocalizedDescriptionKey: "Self deallocated"]))
+                    return
+                }
+                
+                if let error = error {
+                    print("❌ Error fetching comments: \(error.localizedDescription)")
+                }
+                
+                let commentGroup = DispatchGroup()
+                let commentDocs = snapshot?.documents ?? []
+                
+                // Delete votes for each comment
+                for commentDoc in commentDocs {
+                    commentGroup.enter()
+                    self.db.collection("itineraries").document(itineraryID)
+                        .collection("comments").document(commentDoc.documentID)
+                        .collection("votes")
+                        .getDocuments { snapshot, _ in
+                            if let voteDocs = snapshot?.documents, !voteDocs.isEmpty {
+                                let batch = self.db.batch()
+                                voteDocs.forEach { voteDoc in
+                                    batch.deleteDocument(voteDoc.reference)
+                                }
+                                batch.commit { _ in commentGroup.leave() }
+                            } else {
+                                commentGroup.leave()
+                            }
+                        }
+                }
+                
+                commentGroup.notify(queue: .main) {
+                    // Delete all comments
+                    if !commentDocs.isEmpty {
+                        let batch = self.db.batch()
+                        commentDocs.forEach { commentDoc in
+                            batch.deleteDocument(commentDoc.reference)
+                        }
+                        batch.commit { error in
+                            if let error = error {
+                                print("❌ Error deleting comments: \(error.localizedDescription)")
+                            } else {
+                                print("✅ All comments deleted")
+                            }
+                        }
+                    }
+                    
+                    // Step 2: Delete all likes
+                    self.db.collection("itineraries").document(itineraryID)
+                        .collection("likes")
+                        .getDocuments { snapshot, error in
+                            if let error = error {
+                                print("❌ Error fetching likes: \(error.localizedDescription)")
+                            }
+                            
+                            if let likeDocs = snapshot?.documents, !likeDocs.isEmpty {
+                                let batch = self.db.batch()
+                                likeDocs.forEach { likeDoc in
+                                    batch.deleteDocument(likeDoc.reference)
+                                }
+                                batch.commit { error in
+                                    if let error = error {
+                                        print("❌ Error deleting likes: \(error.localizedDescription)")
+                                    } else {
+                                        print("✅ All likes deleted")
+                                    }
+                                }
+                            }
+                            
+                            // Step 3: Delete the itinerary document itself
+                            self.db.collection("itineraries").document(itineraryID).delete { error in
+                                if let error = error {
+                                    print("❌ Error deleting itinerary: \(error.localizedDescription)")
+                                    completion(false, error)
+                                } else {
+                                    print("✅ Itinerary deleted successfully")
+                                    // Remove from local array
+                                    DispatchQueue.main.async {
+                                        self.itineraries.removeAll { $0.id == itineraryID }
+                                    }
+                                    completion(true, nil)
+                                }
+                            }
+                        }
+                }
+            }
+    }
+    
     private func loadAuthorProfilePictures(authorIDs: [String], completion: @escaping ([String: String]) -> Void) {
         let db = Firestore.firestore()
         var profilePictures: [String: String] = [:]

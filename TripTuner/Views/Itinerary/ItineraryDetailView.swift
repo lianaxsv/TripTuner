@@ -18,6 +18,9 @@ struct ItineraryDetailView: View {
     @State private var isLiked: Bool
     @State private var likeCount: Int
     @State private var showComments = false
+    @State private var showDeleteConfirmation = false
+    @State private var isDeleting = false
+    private let itinerariesManager = ItinerariesManager.shared
     
     init(itinerary: Itinerary) {
         self.itinerary = itinerary
@@ -35,6 +38,11 @@ struct ItineraryDetailView: View {
     
     var isCompleted: Bool {
         completedManager.isCompleted(itinerary.id)
+    }
+    
+    var isAuthor: Bool {
+        guard let currentUserID = Auth.auth().currentUser?.uid else { return false }
+        return itinerary.authorID == currentUserID
     }
     
     var body: some View {
@@ -342,7 +350,33 @@ struct ItineraryDetailView: View {
                             .cornerRadius(12)
                     }
                     .padding(.horizontal, 20)
-                    .padding(.vertical, 20)
+                    .padding(.top, 20)
+                    
+                    // Delete Button (only for author)
+                    if isAuthor {
+                        Button(action: {
+                            showDeleteConfirmation = true
+                        }) {
+                            HStack {
+                                Image(systemName: "trash.fill")
+                                Text("Delete Itinerary")
+                                    .font(.system(size: 18, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(Color.red)
+                            .cornerRadius(12)
+                        }
+                        .disabled(isDeleting)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                        .padding(.bottom, 20)
+                    } else {
+                        // Add bottom padding if no delete button
+                        Spacer()
+                            .frame(height: 20)
+                    }
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
@@ -353,9 +387,33 @@ struct ItineraryDetailView: View {
                     }
                 }
             }
+            .alert("⚠️ Delete Itinerary", isPresented: $showDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Delete Forever", role: .destructive) {
+                    deleteItinerary()
+                }
+            } message: {
+                Text("WARNING: This action cannot be undone!\n\nDeleting this itinerary will permanently remove:\n• The itinerary itself\n• All comments and replies\n• All likes and votes\n• All associated data\n\nAre you absolutely sure you want to delete this itinerary?")
+            }
         }
         .sheet(isPresented: $showComments) {
             CommentsView(itineraryID: itinerary.id, commentsViewModel: commentsViewModel)
+        }
+    }
+    
+    private func deleteItinerary() {
+        isDeleting = true
+        itinerariesManager.deleteItinerary(itinerary.id) { success, error in
+            DispatchQueue.main.async {
+                self.isDeleting = false
+                if let error = error {
+                    print("Error deleting itinerary: \(error.localizedDescription)")
+                    // You could show an error alert here if needed
+                } else if success {
+                    // Dismiss the view after successful deletion
+                    self.dismiss()
+                }
+            }
         }
     }
 }
