@@ -10,6 +10,7 @@ import SwiftUI
 import FirebaseAuth
 import FirebaseFirestore
 import FirebaseCore
+import FirebaseStorage
 import GoogleSignIn
 
 class AuthViewModel: ObservableObject {
@@ -262,6 +263,466 @@ class AuthViewModel: ObservableObject {
         }
     }
 
+    
+    func deleteAccount(completion: @escaping (Bool, Error?) -> Void) {
+        guard let userID = Auth.auth().currentUser?.uid else {
+            completion(false, NSError(domain: "AuthViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "No user logged in"]))
+            return
+        }
+        
+        isLoading = true
+        errorMessage = nil
+        
+        print("🗑️ Starting account deletion for user: \(userID)")
+        
+        // Get user handle for cleanup
+        db.collection("users").document(userID).getDocument { [weak self] snapshot, error in
+            guard let self = self else { return }
+            
+            if let error = error {
+                print("❌ Error fetching user data: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    self.isLoading = false
+                    completion(false, error)
+                }
+                return
+            }
+            
+            let handle = snapshot?.data()?["handle"] as? String
+            print("📝 User handle: \(handle ?? "none")")
+            
+            // CRITICAL: Do ALL deletions WHILE user is still authenticated
+            // Step 1: Delete all user subcollections
+            print("🗑️ Step 1: Deleting user subcollections...")
+            self.deleteUserSubcollections(userID: userID) { [weak self] in
+                guard let self = self else { return }
+                print("✅ Step 1 complete: User subcollections deleted")
+                
+                // Step 2: Delete all itineraries created by user and their associated data
+                print("🗑️ Step 2: Deleting user itineraries...")
+                self.deleteUserItineraries(userID: userID) { [weak self] in
+                    guard let self = self else { return }
+                    print("✅ Step 2 complete: User itineraries deleted")
+                    
+                    // Step 3: Delete all comments made by user (from any itinerary) - USE USERID
+                    print("🗑️ Step 3: Deleting user comments...")
+                    self.deleteUserComments(userID: userID) { [weak self] in
+                        guard let self = self else { return }
+                        print("✅ Step 3 complete: User comments deleted")
+                        
+                        // Step 4: Delete all votes made by user on comments - USE USERID
+                        print("🗑️ Step 4: Deleting user comment votes...")
+                        self.deleteUserCommentVotes(userID: userID) { [weak self] in
+                            guard let self = self else { return }
+                            print("✅ Step 4 complete: User comment votes deleted")
+                            
+                            // Step 5: Delete all likes given by user on itineraries - USE USERID
+                            print("🗑️ Step 5: Deleting user itinerary likes...")
+                            self.deleteUserItineraryLikes(userID: userID) { [weak self] in
+                                guard let self = self else { return }
+                                print("✅ Step 5 complete: User itinerary likes deleted")
+                                
+                                // Step 6: Delete user document
+                                print("🗑️ Step 6: Deleting user document...")
+                                self.db.collection("users").document(userID).delete { [weak self] error in
+                                    guard let self = self else { return }
+                                    
+                                    if let error = error {
+                                        print("❌ Error deleting user document: \(error.localizedDescription)")
+                                    } else {
+                                        print("✅ Step 6 complete: User document deleted")
+                                    }
+                                    
+                                    // Step 7: Delete handle reservation
+                                    if let handle = handle {
+                                        print("🗑️ Step 7: Deleting handle reservation...")
+                                        self.db.collection("handles").document(handle.lowercased()).delete { error in
+                                            if let error = error {
+                                                print("❌ Error deleting handle: \(error.localizedDescription)")
+                                            } else {
+                                                print("✅ Step 7 complete: Handle deleted")
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Step 8: Delete profile picture from Storage
+                                    print("🗑️ Step 8: Deleting profile picture...")
+                                    let storage = Storage.storage()
+                                    let profilePictureRef = storage.reference().child("profile_pictures/\(userID)")
+                                    profilePictureRef.delete { error in
+                                        if let error = error {
+                                            print("❌ Error deleting profile picture: \(error.localizedDescription)")
+                                        } else {
+                                            print("✅ Step 8 complete: Profile picture deleted")
+                                        }
+                                    }
+                                    
+                                    // Step 9: Delete Firebase Auth account (LAST - this will invalidate auth token)
+                                    print("🗑️ Step 9: Deleting Firebase Auth account...")
+                                    if let currentUser = Auth.auth().currentUser, currentUser.uid == userID {
+                                        currentUser.delete { [weak self] authError in
+                                            guard let self = self else { return }
+                                            
+                                            DispatchQueue.main.async {
+                                                self.isLoading = false
+                                                
+                                                if let authError = authError {
+                                                    print("❌ Error deleting Auth account: \(authError.localizedDescription)")
+                                                    completion(false, authError)
+                                                } else {
+                                                    print("✅ Step 9 complete: Auth account deleted")
+                                                    print("✅ All deletion steps complete!")
+                                                }
+                                                
+                                                // Step 10: Logout AFTER all deletions complete
+                                                print("🚪 Logging out...")
+                                                self.logout()
+                                                
+                                                if authError == nil {
+                                                    completion(true, nil)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        print("⚠️ No current user found for deletion")
+                                        DispatchQueue.main.async {
+                                            self.isLoading = false
+                                            self.logout()
+                                            completion(true, nil)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // MARK: - Account Deletion Helpers
+    
+    private func deleteUserSubcollections(userID: String, completion: @escaping () -> Void) {
+        let group = DispatchGroup()
+        
+        // Delete likedItineraries subcollection
+        group.enter()
+        db.collection("users").document(userID)
+            .collection("likedItineraries")
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("❌ Error fetching likedItineraries: \(error.localizedDescription)")
+                    group.leave()
+                    return
+                }
+                guard let docs = snapshot?.documents, !docs.isEmpty else {
+                    group.leave()
+                    return
+                }
+                let batch = self.db.batch()
+                docs.forEach { doc in
+                    batch.deleteDocument(doc.reference)
+                }
+                batch.commit { error in
+                    if let error = error {
+                        print("❌ Error deleting likedItineraries: \(error.localizedDescription)")
+                    }
+                    group.leave()
+                }
+            }
+        
+        // Delete savedItineraries subcollection
+        group.enter()
+        db.collection("users").document(userID)
+            .collection("savedItineraries")
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("❌ Error fetching savedItineraries: \(error.localizedDescription)")
+                    group.leave()
+                    return
+                }
+                guard let docs = snapshot?.documents, !docs.isEmpty else {
+                    group.leave()
+                    return
+                }
+                let batch = self.db.batch()
+                docs.forEach { doc in
+                    batch.deleteDocument(doc.reference)
+                }
+                batch.commit { error in
+                    if let error = error {
+                        print("❌ Error deleting savedItineraries: \(error.localizedDescription)")
+                    }
+                    group.leave()
+                }
+            }
+        
+        // Delete completedItineraries subcollection
+        group.enter()
+        db.collection("users").document(userID)
+            .collection("completedItineraries")
+            .getDocuments { snapshot, error in
+                if let error = error {
+                    print("❌ Error fetching completedItineraries: \(error.localizedDescription)")
+                    group.leave()
+                    return
+                }
+                guard let docs = snapshot?.documents, !docs.isEmpty else {
+                    group.leave()
+                    return
+                }
+                let batch = self.db.batch()
+                docs.forEach { doc in
+                    batch.deleteDocument(doc.reference)
+                }
+                batch.commit { error in
+                    if let error = error {
+                        print("❌ Error deleting completedItineraries: \(error.localizedDescription)")
+                    }
+                    group.leave()
+                }
+            }
+        
+        group.notify(queue: .main) {
+            completion()
+        }
+    }
+    
+    private func deleteUserItineraries(userID: String, completion: @escaping () -> Void) {
+        db.collection("itineraries")
+            .whereField("authorID", isEqualTo: userID)
+            .getDocuments { [weak self] snapshot, _ in
+                guard let self = self else {
+                    completion()
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else {
+                    completion()
+                    return
+                }
+                
+                let group = DispatchGroup()
+                
+                for itineraryDoc in documents {
+                    let itineraryID = itineraryDoc.documentID
+                    
+                    // Delete all comments in this itinerary (and their votes)
+                    group.enter()
+                    self.db.collection("itineraries").document(itineraryID)
+                        .collection("comments")
+                        .getDocuments { snapshot, error in
+                            guard let commentDocs = snapshot?.documents, !commentDocs.isEmpty else {
+                                group.leave()
+                                return
+                            }
+                            
+                            let commentGroup = DispatchGroup()
+                            
+                            // Delete votes subcollection for each comment
+                            for commentDoc in commentDocs {
+                                commentGroup.enter()
+                                self.db.collection("itineraries").document(itineraryID)
+                                    .collection("comments").document(commentDoc.documentID)
+                                    .collection("votes")
+                                    .getDocuments { snapshot, _ in
+                                        if let voteDocs = snapshot?.documents, !voteDocs.isEmpty {
+                                            let batch = self.db.batch()
+                                            voteDocs.forEach { voteDoc in
+                                                batch.deleteDocument(voteDoc.reference)
+                                            }
+                                            batch.commit { _ in commentGroup.leave() }
+                                        } else {
+                                            commentGroup.leave()
+                                        }
+                                    }
+                            }
+                            
+                            commentGroup.notify(queue: .main) {
+                                // Delete all comments
+                                let batch = self.db.batch()
+                                commentDocs.forEach { commentDoc in
+                                    batch.deleteDocument(commentDoc.reference)
+                                }
+                                batch.commit { error in
+                                    if let error = error {
+                                        print("❌ Error deleting comments for itinerary \(itineraryID): \(error.localizedDescription)")
+                                    }
+                                    group.leave()
+                                }
+                            }
+                        }
+                    
+                    // Delete likes subcollection
+                    group.enter()
+                    self.db.collection("itineraries").document(itineraryID)
+                        .collection("likes")
+                        .getDocuments { snapshot, _ in
+                            let batch = self.db.batch()
+                            snapshot?.documents.forEach { doc in
+                                batch.deleteDocument(doc.reference)
+                            }
+                            batch.commit { _ in group.leave() }
+                        }
+                    
+                    // Delete the itinerary itself
+                    group.enter()
+                    itineraryDoc.reference.delete { _ in group.leave() }
+                }
+                
+                group.notify(queue: .main) {
+                    completion()
+                }
+            }
+    }
+    
+    private func deleteUserComments(userID: String, completion: @escaping () -> Void) {
+        // Get all itineraries to check for comments
+        db.collection("itineraries").getDocuments { [weak self] snapshot, _ in
+            guard let self = self else {
+                completion()
+                return
+            }
+            
+            guard let itineraryDocs = snapshot?.documents else {
+                completion()
+                return
+            }
+            
+            let group = DispatchGroup()
+            
+            for itineraryDoc in itineraryDocs {
+                let itineraryID = itineraryDoc.documentID
+                
+                group.enter()
+                // CRITICAL: Use userID to find ALL comments by this user
+                self.db.collection("itineraries").document(itineraryID)
+                    .collection("comments")
+                    .whereField("authorID", isEqualTo: userID)
+                    .getDocuments { snapshot, error in
+                        guard let commentDocs = snapshot?.documents, !commentDocs.isEmpty else {
+                            group.leave()
+                            return
+                        }
+                        
+                        let commentGroup = DispatchGroup()
+                        
+                        // Delete votes subcollection for each comment FIRST
+                        for commentDoc in commentDocs {
+                            commentGroup.enter()
+                            self.db.collection("itineraries").document(itineraryID)
+                                .collection("comments").document(commentDoc.documentID)
+                                .collection("votes")
+                                .getDocuments { snapshot, _ in
+                                    if let voteDocs = snapshot?.documents, !voteDocs.isEmpty {
+                                        let batch = self.db.batch()
+                                        voteDocs.forEach { voteDoc in
+                                            batch.deleteDocument(voteDoc.reference)
+                                        }
+                                        batch.commit { _ in commentGroup.leave() }
+                                    } else {
+                                        commentGroup.leave()
+                                    }
+                                }
+                        }
+                        
+                        commentGroup.notify(queue: .main) {
+                            // Delete all comments by this user using userID
+                            let batch = self.db.batch()
+                            commentDocs.forEach { commentDoc in
+                                batch.deleteDocument(commentDoc.reference)
+                            }
+                            batch.commit { error in
+                                if let error = error {
+                                    print("Error deleting comments: \(error.localizedDescription)")
+                                }
+                                group.leave()
+                            }
+                        }
+                    }
+            }
+            
+            group.notify(queue: .main) {
+                completion()
+            }
+        }
+    }
+    
+    private func deleteUserCommentVotes(userID: String, completion: @escaping () -> Void) {
+        // Get all itineraries
+        db.collection("itineraries").getDocuments { [weak self] snapshot, _ in
+            guard let self = self else {
+                completion()
+                return
+            }
+            
+            guard let itineraryDocs = snapshot?.documents else {
+                completion()
+                return
+            }
+            
+            let group = DispatchGroup()
+            
+            for itineraryDoc in itineraryDocs {
+                let itineraryID = itineraryDoc.documentID
+                
+                group.enter()
+                self.db.collection("itineraries").document(itineraryID)
+                    .collection("comments")
+                    .getDocuments { snapshot, _ in
+                        let commentGroup = DispatchGroup()
+                        
+                        snapshot?.documents.forEach { commentDoc in
+                            commentGroup.enter()
+                            // Delete user's vote on this comment
+                            self.db.collection("itineraries").document(itineraryID)
+                                .collection("comments").document(commentDoc.documentID)
+                                .collection("votes").document(userID)
+                                .delete { _ in commentGroup.leave() }
+                        }
+                        
+                        commentGroup.notify(queue: .main) {
+                            group.leave()
+                        }
+                    }
+            }
+            
+            group.notify(queue: .main) {
+                completion()
+            }
+        }
+    }
+    
+    private func deleteUserItineraryLikes(userID: String, completion: @escaping () -> Void) {
+        // Get all itineraries
+        db.collection("itineraries").getDocuments { [weak self] snapshot, _ in
+            guard let self = self else {
+                completion()
+                return
+            }
+            
+            guard let itineraryDocs = snapshot?.documents else {
+                completion()
+                return
+            }
+            
+            let group = DispatchGroup()
+            
+            for itineraryDoc in itineraryDocs {
+                let itineraryID = itineraryDoc.documentID
+                
+                group.enter()
+                // Delete user's like on this itinerary
+                self.db.collection("itineraries").document(itineraryID)
+                    .collection("likes").document(userID)
+                    .delete { _ in group.leave() }
+            }
+            
+            group.notify(queue: .main) {
+                completion()
+            }
+        }
+    }
     
     func logout() {
         try? Auth.auth().signOut()

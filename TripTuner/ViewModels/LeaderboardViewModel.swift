@@ -155,6 +155,13 @@ class LeaderboardViewModel: ObservableObject {
                 entriesByUserID[entry.user.id] = entry
             }
             
+            // Create a set of valid user IDs from Firestore (users that still exist)
+            let validUserIDs = Set(documents.map { $0.documentID })
+            
+            // CRITICAL: Filter out entries for users that no longer exist in Firestore (deleted users)
+            // Only remove entries for users that are NOT in the validUserIDs set
+            entriesByUserID = entriesByUserID.filter { validUserIDs.contains($0.key) }
+            
             // Update all users with profile pictures from Firestore
             for document in documents {
                 let userId = document.documentID
@@ -182,7 +189,8 @@ class LeaderboardViewModel: ObservableObject {
                     existingEntry.user = user
                     entriesByUserID[userId] = existingEntry
                 } else {
-                    // Create new entry for user without itineraries (0 points)
+                    // Create new entry for users that exist in Firestore but don't have entries yet
+                    // Include users with 0 points if they exist in Firestore (they might have itineraries but no likes)
                     let user = User(
                         id: userId,
                         name: name,
@@ -198,8 +206,8 @@ class LeaderboardViewModel: ObservableObject {
                         id: userId, // Use userId as ID to maintain consistency
                         user: user,
                         rank: 0,
-                        points: 0,
-                        tripCount: 0
+                        points: userPoints[userId] ?? 0,
+                        tripCount: userItineraryCount[userId] ?? 0
                     )
                 }
             }

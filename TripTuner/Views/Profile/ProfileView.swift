@@ -13,6 +13,8 @@ struct ProfileView: View {
     @EnvironmentObject var authViewModel: AuthViewModel
     @StateObject private var viewModel: ProfileViewModel
     @State private var showImagePicker = false
+    @State private var showDeleteConfirmation = false
+    @State private var isDeletingAccount = false
     
     @State private var selectedItinerary: Itinerary?
     @State private var selectedPhoto: PhotosPickerItem?
@@ -378,6 +380,26 @@ struct ProfileView: View {
             Divider()
                 .padding(.top, 20)
             
+            // Delete Account Button
+            Button(action: {
+                showDeleteConfirmation = true
+            }) {
+                HStack {
+                    Image(systemName: "trash")
+                        .font(.system(size: 18))
+                    Text("Delete Account")
+                        .font(.system(size: 18, weight: .semibold))
+                    Spacer()
+                }
+                .foregroundColor(.red)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+            }
+            .disabled(isDeletingAccount)
+            
+            Divider()
+            
+            // Sign Out Button
             Button(action: {
                 authViewModel.logout()
             }) {
@@ -392,13 +414,36 @@ struct ProfileView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 16)
             }
+            .disabled(isDeletingAccount)
             
             Divider()
         }
         .padding(.bottom, 20)
+        .alert("Delete Account", isPresented: $showDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                deleteAccount()
+            }
+        } message: {
+            Text("Are you sure you want to delete your account? This action cannot be undone. All your data, including itineraries, comments, and likes, will be permanently deleted.")
+        }
     }
     
     // MARK: - Helper Functions
+    private func deleteAccount() {
+        isDeletingAccount = true
+        authViewModel.deleteAccount { success, error in
+            DispatchQueue.main.async {
+                self.isDeletingAccount = false
+                if let error = error {
+                    print("Error deleting account: \(error.localizedDescription)")
+                    // You could show an error alert here if needed
+                }
+                // If successful, logout() is called inside deleteAccount, so we don't need to do anything
+            }
+        }
+    }
+    
     private func uploadProfilePicture(_ image: UIImage) {
         guard let userID = authViewModel.currentUser?.id else {
             return
