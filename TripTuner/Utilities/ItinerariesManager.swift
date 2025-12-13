@@ -152,12 +152,15 @@ class ItinerariesManager: ObservableObject {
     
     // Apply blocked users filter to existing itineraries
     private func applyBlockedUsersFilter() {
-        let moderationManager = ContentModerationManager.shared
-        let filteredItineraries = moderationManager.filterBlockedContent(
-            allItineraries,
-            authorIDKeyPath: \.authorID
-        )
-        self.itineraries = filteredItineraries
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let moderationManager = ContentModerationManager.shared
+            let filteredItineraries = moderationManager.filterBlockedContent(
+                self.allItineraries,
+                authorIDKeyPath: \.authorID
+            )
+            self.itineraries = filteredItineraries
+        }
     }
     
     func addItinerary(_ itinerary: Itinerary) {

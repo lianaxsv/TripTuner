@@ -596,6 +596,7 @@ class CommentsViewModel: ObservableObject {
                     }
                     
                     guard let documents = snapshot?.documents else {
+                        self.allComments = []
                         self.comments = []
                         return
                     }
@@ -1067,14 +1068,17 @@ class CommentsViewModel: ObservableObject {
     
     // Apply blocked users filter to existing comments
     private func applyBlockedUsersFilter() {
-        let moderationManager = ContentModerationManager.shared
-        let filteredComments = moderationManager.filterBlockedContent(
-            allComments,
-            authorIDKeyPath: \.authorID
-        )
-        // Sort comments to maintain order
-        let sortedComments = filteredComments.sorted { $0.createdAt > $1.createdAt }
-        self.comments = sortedComments
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let moderationManager = ContentModerationManager.shared
+            let filteredComments = moderationManager.filterBlockedContent(
+                self.allComments,
+                authorIDKeyPath: \.authorID
+            )
+            // Sort comments to maintain order
+            let sortedComments = filteredComments.sorted { $0.createdAt > $1.createdAt }
+            self.comments = sortedComments
+        }
     }
 }
 
