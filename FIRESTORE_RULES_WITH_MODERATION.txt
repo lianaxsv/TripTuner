@@ -1,0 +1,133 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // USERS COLLECTION
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      // User's liked itineraries subcollection
+      match /likedItineraries/{itineraryId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // User's saved itineraries subcollection
+      match /savedItineraries/{itineraryId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // User's completed itineraries subcollection
+      match /completedItineraries/{itineraryId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      // User's blocked users subcollection - NEW FOR MODERATION
+      match /blockedUsers/{blockedUserId} {
+        // Users can only read/write their own blocked users list
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // HANDLES COLLECTION
+    match /handles/{handle} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null 
+        && !exists(/databases/$(database)/documents/handles/$(handle));
+      allow update: if request.auth != null 
+        && request.resource.data.uid == request.auth.uid;
+      allow delete: if request.auth != null 
+        && resource.data.uid == request.auth.uid;
+    }
+
+    // ITINERARIES COLLECTION
+    match /itineraries/{itineraryId} {
+      // Anyone authenticated can read all itineraries (for map display)
+      allow read: if request.auth != null;
+      
+      // Anyone authenticated can create itineraries
+      // BUT they can only set authorID to their own UID
+      allow create: if request.auth != null 
+        && request.resource.data.authorID == request.auth.uid;
+      
+      // Only the author can update their own itinerary
+      allow update: if request.auth != null 
+        && resource.data.authorID == request.auth.uid
+        && request.resource.data.authorID == request.auth.uid;
+      
+      // Only the author can delete their own itinerary
+      allow delete: if request.auth != null 
+        && resource.data.authorID == request.auth.uid;
+      
+      // Likes subcollection - anyone can read, authenticated users can write
+      match /likes/{likeId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null;
+      }
+      
+      // Comments subcollection
+      match /comments/{commentId} {
+        // Anyone authenticated can read comments
+        allow read: if request.auth != null;
+        
+        // Anyone authenticated can create comments
+        allow create: if request.auth != null 
+          && request.resource.data.authorID == request.auth.uid;
+        
+        // Allow updates:
+        // 1. Author can update their own comment (any field)
+        // 2. Any authenticated user can update the score field (for voting)
+        allow update: if request.auth != null && (
+          resource.data.authorID == request.auth.uid ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['score'])
+        );
+        
+        allow delete: if request.auth != null 
+          && resource.data.authorID == request.auth.uid;
+        
+        // Votes subcollection - users can read/write their own votes
+        // The document ID is the userId, so users can only write to their own vote
+        match /votes/{userId} {
+          allow read: if request.auth != null;
+          allow write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+    }
+
+    // FLAGS COLLECTION - NEW FOR CONTENT MODERATION
+    // Users can create flags to report objectionable content
+    // Developers/admins can read all flags for moderation
+    match /flags/{flagId} {
+      // Any authenticated user can create a flag
+      allow create: if request.auth != null 
+        && request.resource.data.flaggedBy == request.auth.uid;
+      
+      // Users can read their own flags
+      // Note: For production, you may want to restrict read access to admins only
+      // For now, allowing users to read flags they created
+      allow read: if request.auth != null 
+        && resource.data.flaggedBy == request.auth.uid;
+      
+      // Only allow updates/deletes by admins (you can add admin check here)
+      // For now, no updates/deletes allowed
+      allow update, delete: if false;
+    }
+
+    // DEVELOPER NOTIFICATIONS COLLECTION - NEW FOR MODERATION
+    // Stores notifications about blocked users and flagged content for developer review
+    match /developerNotifications/{notificationId} {
+      // Any authenticated user can create notifications (when blocking users)
+      allow create: if request.auth != null;
+      
+      // For production, restrict read access to admins only
+      // For now, allowing authenticated users to read (you should restrict this to admins)
+      // TODO: Add admin role check when you implement admin authentication
+      allow read: if request.auth != null;
+      
+      // Only allow updates/deletes by admins
+      // For now, no updates/deletes allowed
+      allow update, delete: if false;
+    }
+  }
+}
+

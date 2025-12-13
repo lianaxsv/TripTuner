@@ -57,6 +57,7 @@ class AuthViewModel: ObservableObject {
                         LikedItinerariesManager.shared.reloadLikes()
                         SavedItinerariesManager.shared.reloadSavedItineraries()
                         CompletedItinerariesManager.shared.reloadCompletedItineraries()
+                        ContentModerationManager.shared.loadBlockedUsers()
                     }
                 }
             }
@@ -803,6 +804,7 @@ class AuthViewModel: ObservableObject {
                 LikedItinerariesManager.shared.reloadLikes()
                 SavedItinerariesManager.shared.reloadSavedItineraries()
                 CompletedItinerariesManager.shared.reloadCompletedItineraries()
+                ContentModerationManager.shared.loadBlockedUsers()
             } else {
                 // If there's no user document yet, create a minimal one
                 let email = fallbackEmail ?? Auth.auth().currentUser?.email ?? ""
@@ -837,6 +839,7 @@ class AuthViewModel: ObservableObject {
                 LikedItinerariesManager.shared.reloadLikes()
                 SavedItinerariesManager.shared.reloadSavedItineraries()
                 CompletedItinerariesManager.shared.reloadCompletedItineraries()
+                ContentModerationManager.shared.loadBlockedUsers()
             }
         } catch {
             self.errorMessage = error.localizedDescription

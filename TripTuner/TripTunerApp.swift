@@ -45,6 +45,8 @@ struct TripTunerApp: App {
                     .onAppear {
                         // Reload itineraries when user logs in
                         ItinerariesManager.shared.reloadItineraries()
+                        // Load blocked users for content moderation
+                        ContentModerationManager.shared.loadBlockedUsers()
                     }
             } else {
                 LoginView()

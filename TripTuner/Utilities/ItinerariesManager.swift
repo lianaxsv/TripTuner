@@ -94,14 +94,28 @@ class ItinerariesManager: ObservableObject {
                                 }
                             }
                             
+                            // Filter out blocked users' content
+                            let moderationManager = ContentModerationManager.shared
+                            let filteredItineraries = moderationManager.filterBlockedContent(
+                                loadedItineraries,
+                                authorIDKeyPath: \.authorID
+                            )
+                            
                             DispatchQueue.main.async {
-                                self.itineraries = loadedItineraries
+                                self.itineraries = filteredItineraries
                                 self.syncWithLikedManager()
                             }
                         }
                     } else {
+                        // Filter out blocked users' content
+                        let moderationManager = ContentModerationManager.shared
+                        let filteredItineraries = moderationManager.filterBlockedContent(
+                            loadedItineraries,
+                            authorIDKeyPath: \.authorID
+                        )
+                        
                         DispatchQueue.main.async {
-                            self.itineraries = loadedItineraries
+                            self.itineraries = filteredItineraries
                             self.syncWithLikedManager()
                         }
                     }

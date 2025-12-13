@@ -20,6 +20,9 @@ struct ItineraryDetailView: View {
     @State private var showComments = false
     @State private var showDeleteConfirmation = false
     @State private var isDeleting = false
+    @State private var showFlagSheet = false
+    @State private var showBlockConfirmation = false
+    @StateObject private var moderationManager = ContentModerationManager.shared
     private let itinerariesManager = ItinerariesManager.shared
     
     init(itinerary: Itinerary) {
@@ -381,6 +384,27 @@ struct ItineraryDetailView: View {
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    if !isAuthor {
+                        Menu {
+                            Button(role: .destructive, action: {
+                                showFlagSheet = true
+                            }) {
+                                Label("Report Content", systemImage: "flag")
+                            }
+                            
+                            Button(role: .destructive, action: {
+                                showBlockConfirmation = true
+                            }) {
+                                Label("Block User", systemImage: "person.crop.circle.badge.xmark")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .foregroundColor(.gray)
+                        }
+                    }
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
                         dismiss()
@@ -398,6 +422,58 @@ struct ItineraryDetailView: View {
         }
         .sheet(isPresented: $showComments) {
             CommentsView(itineraryID: itinerary.id, commentsViewModel: commentsViewModel)
+        }
+        .sheet(isPresented: $showFlagSheet) {
+            FlagContentSheet(
+                contentType: .itinerary,
+                contentID: itinerary.id,
+                itineraryID: itinerary.id,
+                onFlagSubmitted: {
+                    showFlagSheet = false
+                }
+            )
+        }
+        .alert("Block User", isPresented: $showBlockConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Block", role: .destructive) {
+                moderationManager.blockUser(
+                    itinerary.authorID,
+                    userName: itinerary.authorName,
+                    userHandle: itinerary.authorHandle
+                )
+                // Dismiss the view after blocking
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("Are you sure you want to block \(itinerary.authorName)? You won't see their content anymore, and they won't be able to see yours.")
+        }
+        .sheet(isPresented: $showFlagSheet) {
+            FlagContentSheet(
+                contentType: .itinerary,
+                contentID: itinerary.id,
+                itineraryID: itinerary.id,
+                onFlagSubmitted: {
+                    showFlagSheet = false
+                }
+            )
+        }
+        .alert("Block User", isPresented: $showBlockConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Block", role: .destructive) {
+                moderationManager.blockUser(
+                    itinerary.authorID,
+                    userName: itinerary.authorName,
+                    userHandle: itinerary.authorHandle
+                )
+                // Dismiss the view after blocking
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("Are you sure you want to block \(itinerary.authorName)? You won't see their content anymore, and they won't be able to see yours.")
         }
     }
     
@@ -528,7 +604,13 @@ class CommentsViewModel: ObservableObject {
                                 loadedComments.append(comment)
                             }
                         }
-                        self.comments = loadedComments
+                        // Filter out blocked users' comments
+                        let moderationManager = ContentModerationManager.shared
+                        let filteredComments = moderationManager.filterBlockedContent(
+                            loadedComments,
+                            authorIDKeyPath: \.authorID
+                        )
+                        self.comments = filteredComments
                         return
                     }
                     
@@ -561,8 +643,15 @@ class CommentsViewModel: ObservableObject {
                     }
                     
                     group.notify(queue: .main) {
+                        // Filter out blocked users' comments
+                        let moderationManager = ContentModerationManager.shared
+                        let filteredComments = moderationManager.filterBlockedContent(
+                            loadedComments,
+                            authorIDKeyPath: \.authorID
+                        )
+                        
                         // Sort loaded comments to maintain order
-                        let sortedComments = loadedComments.sorted { $0.createdAt > $1.createdAt }
+                        let sortedComments = filteredComments.sorted { $0.createdAt > $1.createdAt }
                         self.comments = sortedComments
                     }
                 }
@@ -1131,11 +1220,15 @@ struct CommentRowView: View {
     @State private var isDisliked = false
     @State private var score: Int = 0
     @State private var showDeleteAlert = false
+    @State private var showFlagSheet = false
+    @State private var showBlockConfirmation = false
     @State private var authorName: String = ""
     @State private var content: String = ""
     @State private var authorProfileImageURL: String? = nil
     @State private var createdAt: Date = Date()
     @State private var authorID: String = ""
+    @State private var authorHandle: String = ""
+    @StateObject private var moderationManager = ContentModerationManager.shared
     
     // Get the current comment from the view model (always up-to-date)
     private var comment: Comment? {
@@ -1153,11 +1246,17 @@ struct CommentRowView: View {
         _authorProfileImageURL = State(initialValue: comment.authorProfileImageURL)
         _createdAt = State(initialValue: comment.createdAt)
         _authorID = State(initialValue: comment.authorID)
+        _authorHandle = State(initialValue: comment.authorHandle)
     }
     
     private var canDelete: Bool {
         guard let currentUserID = Auth.auth().currentUser?.uid else { return false }
         return authorID == currentUserID
+    }
+    
+    private var canModerate: Bool {
+        guard let currentUserID = Auth.auth().currentUser?.uid else { return false }
+        return authorID != currentUserID
     }
     
     private var profileImageView: some View {
@@ -1214,6 +1313,26 @@ struct CommentRowView: View {
                         Text("Delete")
                             .font(.system(size: 12))
                             .foregroundColor(.red)
+                    }
+                }
+                
+                if canModerate {
+                    Menu {
+                        Button(role: .destructive, action: {
+                            showFlagSheet = true
+                        }) {
+                            Label("Report", systemImage: "flag")
+                        }
+                        
+                        Button(role: .destructive, action: {
+                            showBlockConfirmation = true
+                        }) {
+                            Label("Block User", systemImage: "person.crop.circle.badge.xmark")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 12))
+                            .foregroundColor(.gray)
                     }
                 }
             }
@@ -1322,6 +1441,7 @@ struct CommentRowView: View {
         authorProfileImageURL = comment.authorProfileImageURL
         createdAt = comment.createdAt
         authorID = comment.authorID
+        authorHandle = comment.authorHandle
     }
     
     private var mainContentView: some View {
@@ -1356,6 +1476,131 @@ struct CommentRowView: View {
             } message: {
                 Text("Are you sure you want to delete this comment?")
             }
+            .sheet(isPresented: $showFlagSheet) {
+                FlagContentSheet(
+                    contentType: .comment,
+                    contentID: commentID,
+                    itineraryID: commentsViewModel.itineraryID,
+                    onFlagSubmitted: {
+                        showFlagSheet = false
+                    }
+                )
+            }
+            .alert("Block User", isPresented: $showBlockConfirmation) {
+                Button("Cancel", role: .cancel) { }
+                Button("Block", role: .destructive) {
+                    moderationManager.blockUser(
+                        authorID,
+                        userName: authorName,
+                        userHandle: authorHandle
+                    )
+                }
+            } message: {
+                Text("Are you sure you want to block \(authorName)? You won't see their content anymore, and they won't be able to see yours.")
+            }
+    }
+}
+
+// MARK: - Flag Content Sheet
+struct FlagContentSheet: View {
+    let contentType: ContentType
+    let contentID: String
+    let itineraryID: String
+    let onFlagSubmitted: () -> Void
+    @Environment(\.dismiss) var dismiss
+    @State private var selectedReason: FlagReason?
+    @State private var additionalInfo: String = ""
+    @State private var isSubmitting = false
+    private let moderationManager = ContentModerationManager.shared
+    
+    enum ContentType {
+        case itinerary
+        case comment
+    }
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section {
+                    Text("Help us understand what's wrong with this content. Your report is anonymous.")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                }
+                
+                Section("Reason for Reporting") {
+                    ForEach(FlagReason.allCases, id: \.self) { reason in
+                        Button(action: {
+                            selectedReason = reason
+                        }) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(reason.rawValue)
+                                        .foregroundColor(.primary)
+                                    Text(reason.description)
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                if selectedReason == reason {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.pennRed)
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if selectedReason != nil {
+                    Section("Additional Information (Optional)") {
+                        TextField("Provide more details...", text: $additionalInfo, axis: .vertical)
+                            .lineLimit(3...6)
+                    }
+                }
+            }
+            .navigationTitle("Report Content")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Submit") {
+                        submitFlag()
+                    }
+                    .disabled(selectedReason == nil || isSubmitting)
+                }
+            }
+        }
+    }
+    
+    private func submitFlag() {
+        guard let reason = selectedReason else { return }
+        
+        isSubmitting = true
+        
+        if contentType == .itinerary {
+            moderationManager.flagItinerary(
+                contentID,
+                reason: reason,
+                additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo
+            )
+        } else {
+            moderationManager.flagComment(
+                contentID,
+                itineraryID: itineraryID,
+                reason: reason,
+                additionalInfo: additionalInfo.isEmpty ? nil : additionalInfo
+            )
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            isSubmitting = false
+            onFlagSubmitted()
+            dismiss()
+        }
     }
 }
 
