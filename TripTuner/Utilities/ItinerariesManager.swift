@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import FirebaseFirestore
 import FirebaseAuth
+import Combine
 
 class ItinerariesManager: ObservableObject {
     static let shared = ItinerariesManager()
@@ -19,9 +20,17 @@ class ItinerariesManager: ObservableObject {
     
     private let db = Firestore.firestore()
     private var listener: ListenerRegistration?
+    private var cancellables = Set<AnyCancellable>()
+    private var allItineraries: [Itinerary] = [] // Store unfiltered itineraries
     
     private init() {
         loadItineraries()
+        // Observe blocked users changes and re-filter
+        ContentModerationManager.shared.$blockedUserIDs
+            .sink { [weak self] _ in
+                self?.applyBlockedUsersFilter()
+            }
+            .store(in: &cancellables)
     }
     
     deinit {
@@ -94,28 +103,18 @@ class ItinerariesManager: ObservableObject {
                                 }
                             }
                             
-                            // Filter out blocked users' content
-                            let moderationManager = ContentModerationManager.shared
-                            let filteredItineraries = moderationManager.filterBlockedContent(
-                                loadedItineraries,
-                                authorIDKeyPath: \.authorID
-                            )
-                            
+                            // Store unfiltered itineraries
                             DispatchQueue.main.async {
-                                self.itineraries = filteredItineraries
+                                self.allItineraries = loadedItineraries
+                                self.applyBlockedUsersFilter()
                                 self.syncWithLikedManager()
                             }
                         }
                     } else {
-                        // Filter out blocked users' content
-                        let moderationManager = ContentModerationManager.shared
-                        let filteredItineraries = moderationManager.filterBlockedContent(
-                            loadedItineraries,
-                            authorIDKeyPath: \.authorID
-                        )
-                        
+                        // Store unfiltered itineraries
                         DispatchQueue.main.async {
-                            self.itineraries = filteredItineraries
+                            self.allItineraries = loadedItineraries
+                            self.applyBlockedUsersFilter()
                             self.syncWithLikedManager()
                         }
                     }
@@ -133,6 +132,7 @@ class ItinerariesManager: ObservableObject {
         listener?.remove()
         listener = nil
         DispatchQueue.main.async {
+            self.allItineraries = []
             self.itineraries = []
             self.isLoading = false
         }
@@ -150,9 +150,21 @@ class ItinerariesManager: ObservableObject {
         }
     }
     
+    // Apply blocked users filter to existing itineraries
+    private func applyBlockedUsersFilter() {
+        let moderationManager = ContentModerationManager.shared
+        let filteredItineraries = moderationManager.filterBlockedContent(
+            allItineraries,
+            authorIDKeyPath: \.authorID
+        )
+        self.itineraries = filteredItineraries
+    }
+    
     func addItinerary(_ itinerary: Itinerary) {
-        // Add to local array immediately for instant UI update
-        itineraries.insert(itinerary, at: 0)
+        // Add to unfiltered array
+        allItineraries.insert(itinerary, at: 0)
+        // Apply filter and update displayed itineraries
+        applyBlockedUsersFilter()
         
         // Save to Firestore
         saveItineraryToFirestore(itinerary)
@@ -172,10 +184,12 @@ class ItinerariesManager: ObservableObject {
     }
     
     func updateItinerary(_ itinerary: Itinerary) {
-        // Update local array
-        if let index = itineraries.firstIndex(where: { $0.id == itinerary.id }) {
-            itineraries[index] = itinerary
+        // Update unfiltered array
+        if let index = allItineraries.firstIndex(where: { $0.id == itinerary.id }) {
+            allItineraries[index] = itinerary
         }
+        // Apply filter and update displayed itineraries
+        applyBlockedUsersFilter()
         
         // Update in Firestore
         let itineraryData = itineraryToFirestoreData(itinerary)
@@ -283,8 +297,9 @@ class ItinerariesManager: ObservableObject {
                                     completion(false, error)
                                 } else {
                                     print("✅ Itinerary deleted successfully")
-                                    // Remove from local array
+                                    // Remove from local arrays
                                     DispatchQueue.main.async {
+                                        self.allItineraries.removeAll { $0.id == itineraryID }
                                         self.itineraries.removeAll { $0.id == itineraryID }
                                     }
                                     completion(true, nil)

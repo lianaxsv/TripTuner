@@ -7,6 +7,7 @@
 
 import SwiftUI
 import FirebaseAuth
+import Combine
 
 struct ItineraryDetailView: View {
     let itinerary: Itinerary
@@ -555,11 +556,19 @@ class CommentsViewModel: ObservableObject {
     
     private let db = Firestore.firestore()
     private var commentsListener: ListenerRegistration?
+    private var cancellables = Set<AnyCancellable>()
+    private var allComments: [Comment] = [] // Store unfiltered comments
 //    private var replyListeners: [String: ListenerRegistration] = [:]
     
     init(itineraryID: String) {
         self.itineraryID = itineraryID
         loadComments()
+        // Observe blocked users changes and re-filter
+        ContentModerationManager.shared.$blockedUserIDs
+            .sink { [weak self] _ in
+                self?.applyBlockedUsersFilter()
+            }
+            .store(in: &cancellables)
     }
     
     deinit {
@@ -604,13 +613,9 @@ class CommentsViewModel: ObservableObject {
                                 loadedComments.append(comment)
                             }
                         }
-                        // Filter out blocked users' comments
-                        let moderationManager = ContentModerationManager.shared
-                        let filteredComments = moderationManager.filterBlockedContent(
-                            loadedComments,
-                            authorIDKeyPath: \.authorID
-                        )
-                        self.comments = filteredComments
+                        // Store unfiltered comments
+                        self.allComments = loadedComments
+                        self.applyBlockedUsersFilter()
                         return
                     }
                     
@@ -643,16 +648,9 @@ class CommentsViewModel: ObservableObject {
                     }
                     
                     group.notify(queue: .main) {
-                        // Filter out blocked users' comments
-                        let moderationManager = ContentModerationManager.shared
-                        let filteredComments = moderationManager.filterBlockedContent(
-                            loadedComments,
-                            authorIDKeyPath: \.authorID
-                        )
-                        
-                        // Sort loaded comments to maintain order
-                        let sortedComments = filteredComments.sorted { $0.createdAt > $1.createdAt }
-                        self.comments = sortedComments
+                        // Store unfiltered comments
+                        self.allComments = loadedComments
+                        self.applyBlockedUsersFilter()
                     }
                 }
             }
@@ -1065,6 +1063,18 @@ class CommentsViewModel: ObservableObject {
     var totalCommentCount: Int {
         comments.count
 //        + comments.reduce(0) { $0 + $1.replies.count }
+    }
+    
+    // Apply blocked users filter to existing comments
+    private func applyBlockedUsersFilter() {
+        let moderationManager = ContentModerationManager.shared
+        let filteredComments = moderationManager.filterBlockedContent(
+            allComments,
+            authorIDKeyPath: \.authorID
+        )
+        // Sort comments to maintain order
+        let sortedComments = filteredComments.sorted { $0.createdAt > $1.createdAt }
+        self.comments = sortedComments
     }
 }
 
